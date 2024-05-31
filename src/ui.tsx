@@ -150,7 +150,6 @@ export function setupUi() {
         log = "You clicked the same box twice.";
         resetHighlight();
         dragger = true
-        return;
       } else {
         log = "You swapped tiles!";
     }
