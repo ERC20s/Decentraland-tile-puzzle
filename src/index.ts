@@ -26,8 +26,8 @@ export async function main() {
     visibleMeshesCollisionMask: ColliderLayer.CL_POINTER,
   });
   Transform.create(grass, { 
-    position: { x: 8, y: 0.01, z: 8 }, 
-    scale: { x: 1, y: 1, z: 1 }, 
+    position: { x: 16, y: 0.01, z: 16 }, 
+    scale: { x: 2, y: 2, z: 2 }, 
     rotation: { x: 0, y: 0, z: 0, w: 0 } 
   });
 

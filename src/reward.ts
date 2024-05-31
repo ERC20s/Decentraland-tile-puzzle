@@ -14,8 +14,8 @@ export function Reward() {
     visibleMeshesCollisionMask: ColliderLayer.CL_POINTER,
   })
   Transform.create(reward, { 
-    position: { x: 8, y: 0.02, z: 8 }, 
-    scale: { x: 1, y: 1, z: 1 }, 
+    position: { x: 16, y: 0.02, z: 16 }, 
+    scale: { x: 2, y: 2, z: 2 }, 
     rotation: { x: 0, y: 0, z: 0, w: 1 } // w should be 1 for a valid quaternion
   })
   function stopSound(entity: Entity) {
