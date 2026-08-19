@@ -28,7 +28,7 @@ export async function main() {
   Transform.create(grass, { 
     position: { x: 16, y: 0.01, z: 16 }, 
     scale: { x: 2, y: 2, z: 2 }, 
-    rotation: { x: 0, y: 0, z: 0, w: 0 } 
+    rotation: { x: 0, y: 0, z: 0, w: 1 } // w must be 1 for a valid (identity) quaternion
   });
 
 
