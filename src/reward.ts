@@ -35,8 +35,9 @@ export function Reward() {
     src: 'models/grass/FloorBaseGrass_01.glb',
     visibleMeshesCollisionMask: ColliderLayer.CL_POINTER,
   })
+  // Move reward so it doesn't overlap scene grass at (16,0.01,16)
   Transform.create(reward, {
-    position: { x: 16, y: 0.02, z: 16 },
+    position: { x: 16, y: 0.02, z: 18 },
     scale: { x: 2, y: 2, z: 2 },
     rotation: { x: 0, y: 0, z: 0, w: 1 } // w should be 1 for a valid quaternion
   })
