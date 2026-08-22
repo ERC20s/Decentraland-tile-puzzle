@@ -5,6 +5,7 @@ import { initAssetPacks } from '@dcl/asset-packs/dist/scene-entrypoint'
 import { setupUi } from './ui'
 import { openExternalUrl, movePlayerTo } from '~system/RestrictedActions'
 import { Reward } from './reward'
+import { normalizeQuaternionOrIdentity } from './quat'
 
 initAssetPacks(engine, pointerEventsSystem, {
   Animator,
@@ -28,7 +29,7 @@ export async function main() {
   Transform.create(grass, { 
     position: { x: 16, y: 0.01, z: 16 }, 
     scale: { x: 2, y: 2, z: 2 }, 
-    rotation: { x: 0, y: 0, z: 0, w: 1 } // w must be 1 for a valid (identity) quaternion
+    rotation: normalizeQuaternionOrIdentity({ x: 0, y: 0, z: 0, w: 1 }) // w must be 1 for a valid (identity) quaternion
   });
 
 
@@ -40,7 +41,7 @@ export async function main() {
   Transform.create(machine, { 
     position: { x: 8, y: 0, z: 8 }, 
     scale: { x: 0.75, y: 0.75, z: 0.75 }, 
-    rotation: { x: 0, y: Math.sin(3 * Math.PI / 4), z: 0, w: Math.cos(3 * Math.PI / 4) }
+    rotation: normalizeQuaternionOrIdentity({ x: 0, y: Math.sin(3 * Math.PI / 4), z: 0, w: Math.cos(3 * Math.PI / 4) })
   });
 
   pointerEventsSystem.onPointerDown(

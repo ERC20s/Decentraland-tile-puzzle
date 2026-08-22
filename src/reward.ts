@@ -1,6 +1,7 @@
 import { Color4 } from '@dcl/sdk/math';
 import ReactEcs, { Button, Label, ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs';
 import { UiCanvasInformation, Entity, InputAction, ColliderLayer, Animator, AudioSource, AvatarAttach, GltfContainer, Material, Transform, VideoPlayer, VisibilityComponent, engine, pointerEventsSystem } from '@dcl/sdk/ecs';
+import { normalizeQuaternionOrIdentity } from './quat'
 
 // The reward is ONE scene entity, created on the first win and reused on every
 // win after it. Building it per win stacked another grass mesh and another
@@ -39,7 +40,7 @@ export function Reward() {
   Transform.create(reward, {
     position: { x: 16, y: 0.02, z: 18 },
     scale: { x: 2, y: 2, z: 2 },
-    rotation: { x: 0, y: 0, z: 0, w: 1 } // w should be 1 for a valid quaternion
+    rotation: normalizeQuaternionOrIdentity({ x: 0, y: 0, z: 0, w: 1 }) // w should be 1 for a valid quaternion
   })
 
   pointerEventsSystem.onPointerDown(
