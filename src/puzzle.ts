@@ -49,9 +49,30 @@ export const resetPuzzle = (boxes: BoxInfo[], imageUrls: string[]): void => {
   }
 
   // Work on a copy so callers' arrays are not mutated
-  const shuffled = imageUrls.slice();
-  shuffleArray(shuffled);
-  const toAssign = shuffled.slice(0, boxes.length);
+  const maxAttempts = 10;
+  let shuffled = imageUrls.slice();
+  let toAssign: string[] = [];
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    // copy here so each shuffle attempt starts from original imageUrls
+    shuffled = imageUrls.slice();
+    shuffleArray(shuffled);
+    toAssign = shuffled.slice(0, boxes.length);
+
+    // check if this assignment is identical to the current boxes' images
+    let identical = true;
+    for (let i = 0; i < boxes.length; i++) {
+      if (boxes[i].box.image !== toAssign[i]) {
+        identical = false;
+        break;
+      }
+    }
+
+    if (!identical) break;
+    // otherwise retry up to maxAttempts
+  }
+
+  // assign whatever toAssign we have (may be identical if all attempts matched)
   for (let i = 0; i < boxes.length; i++) {
     boxes[i].box.image = toAssign[i];
   }
