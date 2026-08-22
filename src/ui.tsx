@@ -63,11 +63,10 @@ for (let i = 0; i < boxes.length; i++) {
   boxes[i].box.image = imageUrls[i];
 }
 
-
 export function setupUi() {
   let dragIndex = -1;
   let log = "Click and drag to move the boxes.";
-  let dragger = false
+
   const resetHighlight = () => {
     highlight = {
       box: {
@@ -81,51 +80,48 @@ export function setupUi() {
       },
     };
     dragIndex = -1;
-    dragger = false
   };
 
+  // Deterministic selection and swap flow:
+  // - First click selects and highlights a box (sets dragIndex)
+  // - Clicking the same box again clears selection (no swap)
+  // - Clicking a different box performs swapTiles(...), checks win, calls Reward() if solved, then clears selection
   const DragThis = (boxData: BoxInfo, index: number) => {
-    if (dragger) {
-      return;
-    }else {
-    if (dragIndex !== -1) {
-      log = "You've already clicked a box. Click another to complete the drop.";
-      return;
-    } else {
+    // If nothing is selected, select and highlight this box
+    if (dragIndex === -1) {
       highlight.box.height = boxData.box.height + 10;
       highlight.box.width = boxData.box.width + 10;
       highlight.box.top = boxData.box.top - 5;
       highlight.box.left = boxData.box.left - 5;
-      log = "Box is highlighted. Dragging started from box " + index;
+      log = "Box is highlighted. Click another box to swap, or click the same to cancel.";
+      dragIndex = index;
+      return;
     }
-    dragIndex = index;
-  }
+
+    // If the same box is clicked again on mousedown, do nothing here; DropThat will handle deselect
+    if (dragIndex === index) {
+      log = "Box already selected. Release to cancel selection or click another box to swap.";
+      return;
+    }
+
+    // If another box is already selected, keep selection and wait for DropThat to perform the swap
+    log = "A box is already selected. Release on another box to swap.";
   };
 
   const DropThat = (index: number) => {
-    if (dragger) {
-      if (dragIndex === index) {
-        log = "You clicked the same box twice.";
-        resetHighlight();
-        return;
-      } else {
-        log = "You swapped tiles!";
-    }
-  }
-    else {
     if (dragIndex === -1) {
-      log = "You need to click a box to drag first.";
-      return;
-    } else if (dragIndex === index) {
-      log = "Click another box to swap.";
-      dragger = true
+      log = "You need to click a box to select it first.";
       return;
     }
-  }
 
-    const dragBox = boxes[dragIndex - 1];
-    const dropBox = boxes[index - 1];
+    // If user released on the same box, treat as deselect
+    if (dragIndex === index) {
+      log = "Selection cancelled.";
+      resetHighlight();
+      return;
+    }
 
+    // Perform swap between dragIndex and index
     swapTiles(boxes, dragIndex, index);
 
     log = `Dropped box ${dragIndex} on box ${index}.`;
@@ -159,7 +155,7 @@ export function setupUi() {
           height: highlight.box.height, // Adjusted to add unit
           margin: { top: highlight.box.top, left: highlight.box.left },
           positionType: 'absolute',
-  
+
         }}
         uiBackground={{ color: Color4.create(0.5, 0.3, 0.7, 0.6) }}
       >
