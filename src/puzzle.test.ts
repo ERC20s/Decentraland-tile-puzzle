@@ -13,10 +13,21 @@ function makeBoxesAndImages(): {boxes: BoxInfo[]; images: string[]; original: st
   return {boxes, images, original};
 }
 
+// simple deterministic RNG for tests: cycles through provided values
+function makeCycleRng(values: number[]) {
+  let idx = 0;
+  return () => {
+    const v = values[idx % values.length];
+    idx++;
+    return v;
+  };
+}
+
+
 test('shuffleArray permutes elements', () => {
   const arr = [1,2,3,4,5];
   const before = arr.slice();
-  shuffleArray(arr);
+  shuffleArray(arr, makeCycleRng([0.5, 0.4, 0.3, 0.2]));
   expect(arr.sort()).toEqual(before.sort());
   expect(arr.length).toBe(before.length);
 });
@@ -67,7 +78,7 @@ test('swapTiles with same indices leaves board unchanged', () => {
 test('resetPuzzle reshuffles and assigns images and does not mutate input array', () => {
   const {boxes, images, original} = makeBoxesAndImages();
   const imagesBefore = images.slice();
-  resetPuzzle(boxes, images);
+  resetPuzzle(boxes, images, makeCycleRng([0.6, 0.1, 0.2, 0.3]));
   // images should be a permutation of original values
   const after = boxes.map(b => b.box.image);
   expect(after.length).toBe(original.length);
@@ -87,7 +98,7 @@ test('resetPuzzle throws when imageUrls shorter than boxes', () => {
 test('resetPuzzle accepts longer image array and uses first N shuffled images', () => {
   const {boxes, original} = makeBoxesAndImages();
   const longImages = ['a','b','c','d','e','f','g'];
-  resetPuzzle(boxes, longImages);
+  resetPuzzle(boxes, longImages, makeCycleRng([0.7, 0.4, 0.2, 0.1]));
   const after = boxes.map(b => b.box.image);
   // boxes should have length 5 and be made from first 7 values (but exactly 5 assigned)
   expect(after.length).toBe(5);
@@ -104,10 +115,15 @@ test('resetPuzzle avoids perfect no-op shuffle when possible', () => {
   // Force boxes to a known state equal to original
   for (let i = 0; i < boxes.length; i++) boxes[i].box.image = original[i];
 
-  // Call resetPuzzle; because images contains multiple distinct entries a different assignment is possible
-  resetPuzzle(boxes, images);
+  // Use an RNG that will produce a shuffle identical to original on first attempt,
+  // then a different shuffle on the second attempt so resetPuzzle must retry.
+  // We craft values so that first shuffle picks indices producing the same order,
+  // then subsequent values change it. For simplicity we use values producing j=0,1,2,3,4 etc.
+  const rngValues = [0.0, 0.2, 0.4, 0.6, 0.8, // first attempt yields identity-like picks
+                     0.5, 0.4, 0.3, 0.2, 0.1]; // second attempt different
+  resetPuzzle(boxes, images, makeCycleRng(rngValues));
   const after = boxes.map(b => b.box.image);
-  // If there are at least two different images, it's possible to change the board; assert that at least one tile changed
+  // Assert that at least one tile changed from original (i.e., retry succeeded)
   let changed = false;
   for (let i = 0; i < after.length; i++) {
     if (after[i] !== original[i]) {

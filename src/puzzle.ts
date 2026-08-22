@@ -24,10 +24,11 @@ export const createBox = (index: number, top: number, left: number, image: strin
   },
 });
 
-// In-place Fisher-Yates shuffle
-export const shuffleArray = <T>(array: T[]): void => {
+// In-place Fisher-Yates shuffle with injectable RNG (defaults to Math.random)
+export const shuffleArray = <T>(array: T[], rng?: () => number): void => {
+  const _rng = rng ? rng : Math.random;
   for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(_rng() * (i + 1));
     [array[i], array[j]] = [array[j], array[i]];
   }
 };
@@ -42,7 +43,8 @@ export const checkIfOriginalImages = (boxes: BoxInfo[], originalImages: string[]
 };
 
 // Shuffle imageUrls without mutating the supplied array and assign to boxes images
-export const resetPuzzle = (boxes: BoxInfo[], imageUrls: string[]): void => {
+// Accepts an optional rng to make shuffling deterministic for tests
+export const resetPuzzle = (boxes: BoxInfo[], imageUrls: string[], rng?: () => number): void => {
   // Fail fast if there are not enough images for the boxes
   if (imageUrls.length < boxes.length) {
     throw new Error('resetPuzzle requires imageUrls.length >= boxes.length');
@@ -56,7 +58,7 @@ export const resetPuzzle = (boxes: BoxInfo[], imageUrls: string[]): void => {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     // copy here so each shuffle attempt starts from original imageUrls
     shuffled = imageUrls.slice();
-    shuffleArray(shuffled);
+    shuffleArray(shuffled, rng);
     toAssign = shuffled.slice(0, boxes.length);
 
     // check if this assignment is identical to the current boxes' images
