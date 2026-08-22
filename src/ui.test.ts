@@ -66,3 +66,14 @@ test('setupUi onWin injection and simulateSwap trigger win', () => {
   expect(result).toBe(true);
   expect(calledOnWin).toBe(true);
 });
+
+test('setupUi resetToOriginal triggers win and returns true', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const setUiMock = makeSetUiRendererMock();
+  const onWinSpy = makeOnWinSpy();
+  const api: any = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock, onWin: onWinSpy as any });
+  // the resetMock swapped positions 1 and 2; calling resetToOriginal() should restore solved board and win
+  const result = api.resetToOriginal();
+  expect(result).toBe(true);
+  expect(calledOnWin).toBe(true);
+});

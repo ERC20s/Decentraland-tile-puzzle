@@ -142,6 +142,32 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     }
   };
 
+  const ResetBoard = () => {
+    try {
+      // Assign the canonical solved image order directly from originalImages so
+      // this action always restores the solved state regardless of injected
+      // resetPuzzle mocks used in tests.
+      for (let i = 0; i < boxes.length && i < originalImages.length; i++) {
+        boxes[i].box.image = originalImages[i];
+      }
+      resetHighlight();
+      log = "Board reset to the solved image order.";
+
+      if (checkIfOriginalImages(boxes, originalImages)) {
+        log = "Congratulations! The images are back in the original positions! Turn your sound on!";
+        runOnWin();
+        return true;
+      }
+      return false;
+    } catch (e: any) {
+      console.warn('[ui] ResetBoard failed', e);
+      resetHighlight();
+      const msg = e instanceof Error ? e.message : String(e);
+      log = `Reset failed: ${msg}`;
+      return false;
+    }
+  };
+
   const uiComponent = () => (
     <UiEntity
       uiTransform={{
@@ -180,6 +206,16 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
           margin: { top: 0, left: 0 },
         }}
         onMouseDown={() => ShuffleBoard()}
+      />
+      <Button
+        key={"reset"}
+        value={"Reset"}
+        uiTransform={{
+          width: 90,
+          height: 25,
+          margin: { top: 0, left: 8 },
+        }}
+        onMouseDown={() => ResetBoard()}
       />
       {boxes.map((box) => (
         <Button
@@ -243,6 +279,9 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
         return true;
       }
       return false;
+    },
+    resetToOriginal: () => {
+      return ResetBoard();
     }
   };
 }
