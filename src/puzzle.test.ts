@@ -96,3 +96,24 @@ test('resetPuzzle accepts longer image array and uses first N shuffled images', 
     expect(longImages.includes(img)).toBe(true);
   }
 });
+
+// Deterministic test to ensure resetPuzzle avoids no-op shuffles when possible
+
+test('resetPuzzle avoids perfect no-op shuffle when possible', () => {
+  const {boxes, images, original} = makeBoxesAndImages();
+  // Force boxes to a known state equal to original
+  for (let i = 0; i < boxes.length; i++) boxes[i].box.image = original[i];
+
+  // Call resetPuzzle; because images contains multiple distinct entries a different assignment is possible
+  resetPuzzle(boxes, images);
+  const after = boxes.map(b => b.box.image);
+  // If there are at least two different images, it's possible to change the board; assert that at least one tile changed
+  let changed = false;
+  for (let i = 0; i < after.length; i++) {
+    if (after[i] !== original[i]) {
+      changed = true;
+      break;
+    }
+  }
+  expect(changed).toBe(true);
+});
