@@ -2,22 +2,8 @@ import { Color4 } from '@dcl/sdk/math';
 import ReactEcs, { Button, Label, ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs';
 import { UiCanvasInformation, Entity, InputAction, ColliderLayer, Animator, AudioSource, AvatarAttach, GltfContainer, Material, Transform, VideoPlayer, VisibilityComponent, engine, pointerEventsSystem } from '@dcl/sdk/ecs';
 import { Reward } from './reward';
+import { createBox, shuffleArray, checkIfOriginalImages, resetPuzzle, swapTiles, BoxInfo } from './puzzle';
 
-
-
-
-export interface BoxInfo {
-  box: {
-    index: number;
-    height: number;
-    width: number;
-    text: string;
-    image: string;
-    top: number;
-    left: number;
-    click: string;
-  };
-}
 
 const imageUrls = [
   'images/image1x1.png',
@@ -47,19 +33,6 @@ const imageUrls = [
   'images/image5x5.png'
 ];
 
-const createBox = (index: number, top: number, left: number, image: string): BoxInfo => ({
-  box: {
-    index: index,
-    height: 100,
-    width: 100,
-    text: "",
-    image: image,
-    top: top,
-    left: left,
-    click: "",
-  },
-});
-
 const boxes: BoxInfo[] = [];
 const gridRows = 5;
 const gridCols = 5;
@@ -85,33 +58,11 @@ let highlight = {
   },
 };
 
-const shuffleArray = (array: string[]) => {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-};
-
 shuffleArray(imageUrls);
 for (let i = 0; i < boxes.length; i++) {
   boxes[i].box.image = imageUrls[i];
 }
 
-const checkIfOriginalImages = () => {
-  for (let i = 0; i < boxes.length; i++) {
-    if (boxes[i].box.image !== originalImages[i]) {
-      return false;
-    }
-  }
-  return true;
-};
-
-const resetPuzzle = () => {
-  shuffleArray(imageUrls);
-  for (let i = 0; i < boxes.length; i++) {
-    boxes[i].box.image = imageUrls[i];
-  }
-};
 
 export function setupUi() {
   let dragIndex = -1;
@@ -175,11 +126,11 @@ export function setupUi() {
     const dragBox = boxes[dragIndex - 1];
     const dropBox = boxes[index - 1];
 
-    [dragBox.box.image, dropBox.box.image] = [dropBox.box.image, dragBox.box.image];
+    swapTiles(boxes, dragIndex, index);
 
     log = `Dropped box ${dragIndex} on box ${index}.`;
 
-    if (checkIfOriginalImages()) {
+    if (checkIfOriginalImages(boxes, originalImages)) {
       log = "Congratulations! The images are back in the original positions! Turn your sound on!";
       Reward();
     }
@@ -188,7 +139,7 @@ export function setupUi() {
   };
 
   const ShuffleBoard = () => {
-    resetPuzzle();
+    resetPuzzle(boxes, imageUrls);
     resetHighlight();
     log = "Board shuffled. Click and drag to move the boxes.";
   };
