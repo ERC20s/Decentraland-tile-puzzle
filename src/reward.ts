@@ -8,15 +8,34 @@ import { UiCanvasInformation, Entity, InputAction, ColliderLayer, Animator, Audi
 // old pointer handlers registered.
 let rewardEntity: Entity | null = null
 
-export function Reward() {
+export function Reward(track?: string) {
+  const selectedTrack = track ?? 'music/champ2.mp3'
+
   if (rewardEntity !== null) {
-    AudioSource.getMutable(rewardEntity).playing = true
+    // Preserve the current playing state if possible, then replace the AudioSource
+    let existingPlaying = true
+    try {
+      existingPlaying = AudioSource.getMutable(rewardEntity).playing
+    } catch {
+      // If we cannot read the mutable component, assume it was playing to avoid
+      // silently muting the reward when updating the clip.
+      existingPlaying = true
+    }
+
+    // Safely replace the AudioSource component so we don't call create on an
+    // entity that already has the component and risk throwing.
+    AudioSource.createOrReplace(rewardEntity, {
+      audioClipUrl: selectedTrack,
+      loop: false,
+      playing: existingPlaying,
+    })
+
     return
   }
 
   const reward = engine.addEntity()
   AudioSource.create(reward, {
-    audioClipUrl: 'music/champ2.mp3',
+    audioClipUrl: selectedTrack,
     loop: false,
     playing: true,
   })
@@ -42,9 +61,13 @@ export function Reward() {
 }
 
 function toggleSound(entity: Entity) {
-  const audioSource = AudioSource.getMutable(entity)
-
-  // Was `audioSource.playing != audioSource.playing` — a comparison of the field
-  // with itself whose result was thrown away, so the button did nothing at all.
-  audioSource.playing = !audioSource.playing
+  // Guard reads/updates to AudioSource so we don't crash if the component is
+  // missing or the mutable accessor throws.
+  try {
+    const audioSource = AudioSource.getMutable(entity)
+    audioSource.playing = !audioSource.playing
+  } catch {
+    // If we cannot access the AudioSource, do nothing rather than throw.
+    return
+  }
 }

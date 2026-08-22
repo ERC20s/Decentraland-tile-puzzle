@@ -117,6 +117,18 @@ export function setupUi() {
   let dragIndex = -1;
   let log = "Click and drag to move the boxes.";
   let dragger = false
+  // selectedTrack holds the user's choice for which win-song to play; default 2
+  let selectedTrack = 2
+
+  const getTrackPath = (selected: number) => {
+    switch (selected) {
+      case 1: return 'music/champ.mp3'
+      case 2: return 'music/champ2.mp3'
+      case 3: return 'music/champ3.mp3'
+      default: return 'music/champ2.mp3'
+    }
+  }
+
   const resetHighlight = () => {
     highlight = {
       box: {
@@ -181,7 +193,8 @@ export function setupUi() {
 
     if (checkIfOriginalImages()) {
       log = "Congratulations! The images are back in the original positions! Turn your sound on!";
-      Reward();
+      // Pass the currently selected track to Reward so the chosen song plays on win
+      Reward(getTrackPath(selectedTrack));
     }
 
     resetHighlight();
@@ -232,6 +245,37 @@ export function setupUi() {
           margin: { top: 0, left: 0 },
         }}
         onMouseDown={() => ShuffleBoard()}
+      />
+      {/* Song selector buttons: set selectedTrack; selection is read when Reward is called */}
+      <Button
+        key={"song1"}
+        value={"Song 1"}
+        uiTransform={{
+          width: 60,
+          height: 25,
+          margin: { top: 0, left: 100 },
+        }}
+        onMouseDown={() => { selectedTrack = 1 }}
+      />
+      <Button
+        key={"song2"}
+        value={"Song 2"}
+        uiTransform={{
+          width: 60,
+          height: 25,
+          margin: { top: 0, left: 170 },
+        }}
+        onMouseDown={() => { selectedTrack = 2 }}
+      />
+      <Button
+        key={"song3"}
+        value={"Song 3"}
+        uiTransform={{
+          width: 60,
+          height: 25,
+          margin: { top: 0, left: 240 },
+        }}
+        onMouseDown={() => { selectedTrack = 3 }}
       />
       {boxes.map((box) => (
         <Button
