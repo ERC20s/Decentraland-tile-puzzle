@@ -4,8 +4,13 @@ A Decentraland SDK7 scene that renders an image tile-swap puzzle in-world, with 
 
 Setup
 
-- npm i
-- npm run start
+Requirements: Node >=16.0.0 and npm >=6.0.0 (see the engines field in package.json).
+
+- npm i — installs dependencies.
+- npm run start — runs the scene locally with the SDK7 dev server (sdk-commands start).
+- npm run build — produces a production build of the scene (sdk-commands build).
+- npm run deploy — publishes the scene to Decentraland (sdk-commands deploy); this will prompt for a wallet/CLI login.
+- npm run upgrade-sdk / npm run upgrade-sdk:next — update the @dcl/sdk dependency to the latest or next release.
 
 Features
 
