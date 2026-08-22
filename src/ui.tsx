@@ -58,9 +58,13 @@ let highlight = {
   },
 };
 
-shuffleArray(imageUrls);
+// Do not mutate the module-level imageUrls constant. Create a shuffled copy for the
+// initial board assignment so other code (for example resetPuzzle(boxes, imageUrls.slice()))
+// can rely on imageUrls staying in its canonical order.
+const startImages = imageUrls.slice();
+shuffleArray(startImages);
 for (let i = 0; i < boxes.length; i++) {
-  boxes[i].box.image = imageUrls[i];
+  boxes[i].box.image = startImages[i];
 }
 
 export function setupUi() {
