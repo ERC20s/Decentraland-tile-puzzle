@@ -10,7 +10,18 @@ let rewardEntity: Entity | null = null
 
 export function Reward() {
   if (rewardEntity !== null) {
-    AudioSource.getMutable(rewardEntity).playing = true
+    // Guard access to the AudioSource component so a missing or invalid
+    // component does not throw and crash the scene for players.
+    try {
+      const audioSource = AudioSource.getMutable(rewardEntity)
+      if (audioSource && typeof audioSource.playing === 'boolean') {
+        audioSource.playing = true
+      } else {
+        console.warn('[reward] AudioSource missing or invalid on reused reward entity; cannot start playback')
+      }
+    } catch (e) {
+      console.warn('[reward] Exception while accessing AudioSource on reused reward entity:', e)
+    }
     return
   }
 
@@ -42,9 +53,22 @@ export function Reward() {
 }
 
 function toggleSound(entity: Entity) {
-  const audioSource = AudioSource.getMutable(entity)
+  // Defensive access: try/catch plus null and type checks ensure toggling
+  // cannot throw if the component is missing or malformed.
+  try {
+    const audioSource = AudioSource.getMutable(entity)
+    if (!audioSource) {
+      console.warn('[reward] toggleSound: AudioSource.getMutable returned null or undefined')
+      return
+    }
 
-  // Was `audioSource.playing != audioSource.playing` — a comparison of the field
-  // with itself whose result was thrown away, so the button did nothing at all.
-  audioSource.playing = !audioSource.playing
+    if (typeof audioSource.playing !== 'boolean') {
+      console.warn('[reward] toggleSound: AudioSource.playing is not a boolean; skipping toggle')
+      return
+    }
+
+    audioSource.playing = !audioSource.playing
+  } catch (e) {
+    console.warn('[reward] Exception while toggling AudioSource.playing:', e)
+  }
 }
