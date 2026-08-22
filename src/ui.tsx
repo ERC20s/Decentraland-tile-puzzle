@@ -145,12 +145,16 @@ export function setupUi() {
   };
 
 
-  const uiComponent = () => (
+  const uiComponent = () => {
+    const canvasInfo = UiCanvasInformation.getOrNull(engine.RootEntity);
+    const leftGap = canvasInfo ? Math.round(canvasInfo.width * 0.3) : 300;
+
+    return (
     <UiEntity
       uiTransform={{
         width: 800,
         height: 600,
-        margin: '16px 0 8px 300px',
+        margin: `16px 0 8px ${leftGap}px`,
       }}
     >
             <UiEntity
@@ -215,14 +219,19 @@ export function setupUi() {
         }}
       />
     </UiEntity>
-  );
+    );
+  };
 
-  const close = () => (
+  const close = () => {
+    const canvasInfo = UiCanvasInformation.getOrNull(engine.RootEntity);
+    const leftGap = canvasInfo ? Math.round(canvasInfo.width * 0.3) : 300;
+
+    return (
     <UiEntity
       uiTransform={{
         width: 30,
         height: 25,
-        margin: '16px 0 8px 300px',
+        margin: `16px 0 8px ${leftGap}px`,
       }}
     >
       <Button
@@ -235,7 +244,8 @@ export function setupUi() {
         onMouseDown={() => ReactEcsRenderer.setUiRenderer(uiComponent)}
       />
     </UiEntity>
-  );
+    );
+  };
 
   ReactEcsRenderer.setUiRenderer(uiComponent);
 }
