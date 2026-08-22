@@ -41,6 +41,29 @@ test('swapTiles swaps exactly two tiles', () => {
   }
 });
 
+// New tests for swapTiles edge cases
+
+test('swapTiles is no-op for invalid indices', () => {
+  const {boxes} = makeBoxesAndImages();
+  const before = boxes.map(b => b.box.image);
+  // inputs are 1-based: 0, -1 and boxes.length+1 are invalid and should be ignored
+  swapTiles(boxes, 0, 1);
+  swapTiles(boxes, -1, 2);
+  swapTiles(boxes, boxes.length + 1, 1);
+  const after = boxes.map(b => b.box.image);
+  expect(after).toEqual(before);
+});
+
+test('swapTiles with same indices leaves board unchanged', () => {
+  const {boxes} = makeBoxesAndImages();
+  const before = boxes.map(b => b.box.image);
+  // swapping the same 1-based index should be a no-op
+  swapTiles(boxes, 1, 1);
+  swapTiles(boxes, 3, 3);
+  const after = boxes.map(b => b.box.image);
+  expect(after).toEqual(before);
+});
+
 test('resetPuzzle reshuffles and assigns images and does not mutate input array', () => {
   const {boxes, images, original} = makeBoxesAndImages();
   const imagesBefore = images.slice();
