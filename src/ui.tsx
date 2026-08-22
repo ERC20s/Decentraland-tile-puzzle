@@ -128,6 +128,25 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     resetHighlight();
   };
 
+  const ResetBoard = () => {
+    try {
+      for (let i = 0; i < boxes.length; i++) {
+        boxes[i].box.image = originalImages[i];
+      }
+      resetHighlight();
+      log = "Board reset to original images.";
+      if (checkIfOriginalImages(boxes, originalImages)) {
+        log = "Congratulations! The images are back in the original positions! Turn your sound on!";
+        runOnWin();
+      }
+    } catch (e: any) {
+      console.warn('[ui] ResetBoard failed', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      log = `Reset failed: ${msg}`;
+      resetHighlight();
+    }
+  };
+
   const ShuffleBoard = () => {
     try {
       runResetPuzzle(boxes, imageUrls.slice());
@@ -180,6 +199,16 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
           margin: { top: 0, left: 0 },
         }}
         onMouseDown={() => ShuffleBoard()}
+      />
+      <Button
+        key={"reset"}
+        value={"Reset"}
+        uiTransform={{
+          width: 90,
+          height: 25,
+          margin: { top: 0, left: 100 },
+        }}
+        onMouseDown={() => ResetBoard()}
       />
       {boxes.map((box) => (
         <Button
@@ -243,6 +272,21 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
         return true;
       }
       return false;
+    },
+    resetToOriginal: () => {
+      try {
+        for (let i = 0; i < boxes.length; i++) {
+          boxes[i].box.image = originalImages[i];
+        }
+        if (checkIfOriginalImages(boxes, originalImages)) {
+          runOnWin();
+          return true;
+        }
+        return false;
+      } catch (e: any) {
+        console.warn('[ui] resetToOriginal failed', e);
+        return false;
+      }
     }
   };
 }
