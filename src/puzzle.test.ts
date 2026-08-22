@@ -52,3 +52,24 @@ test('resetPuzzle reshuffles and assigns images and does not mutate input array'
   // input images array should not have been mutated
   expect(images).toEqual(imagesBefore);
 });
+
+// New tests for resetPuzzle edge cases
+
+test('resetPuzzle throws when imageUrls shorter than boxes', () => {
+  const {boxes} = makeBoxesAndImages();
+  const shortImages = ['a','b','c']; // length 3 < boxes.length 5
+  expect(() => resetPuzzle(boxes, shortImages)).toThrow();
+});
+
+test('resetPuzzle accepts longer image array and uses first N shuffled images', () => {
+  const {boxes, original} = makeBoxesAndImages();
+  const longImages = ['a','b','c','d','e','f','g'];
+  resetPuzzle(boxes, longImages);
+  const after = boxes.map(b => b.box.image);
+  // boxes should have length 5 and be made from first 7 values (but exactly 5 assigned)
+  expect(after.length).toBe(5);
+  // Each assigned image must be one of the provided images
+  for (const img of after) {
+    expect(longImages.includes(img)).toBe(true);
+  }
+});

@@ -43,11 +43,17 @@ export const checkIfOriginalImages = (boxes: BoxInfo[], originalImages: string[]
 
 // Shuffle imageUrls without mutating the supplied array and assign to boxes images
 export const resetPuzzle = (boxes: BoxInfo[], imageUrls: string[]): void => {
+  // Fail fast if there are not enough images for the boxes
+  if (imageUrls.length < boxes.length) {
+    throw new Error('resetPuzzle requires imageUrls.length >= boxes.length');
+  }
+
   // Work on a copy so callers' arrays are not mutated
   const shuffled = imageUrls.slice();
   shuffleArray(shuffled);
+  const toAssign = shuffled.slice(0, boxes.length);
   for (let i = 0; i < boxes.length; i++) {
-    boxes[i].box.image = shuffled[i];
+    boxes[i].box.image = toAssign[i];
   }
 };
 
