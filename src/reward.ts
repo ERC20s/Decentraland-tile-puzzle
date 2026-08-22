@@ -53,7 +53,7 @@ export function Reward() {
   rewardEntity = reward
 }
 
-function toggleSound(entity: Entity) {
+export function toggleSound(entity: Entity) {
   // Defensive access: try/catch plus null and type checks ensure toggling
   // cannot throw if the component is missing or malformed.
   try {
@@ -72,4 +72,11 @@ function toggleSound(entity: Entity) {
   } catch (e) {
     console.warn('[reward] Exception while toggling AudioSource.playing:', e)
   }
+}
+
+// Test-only helper: reset the module-local rewardEntity so tests can run
+// deterministically without needing to reload the module.
+// NOTE: exported only for tests; do not use from production code.
+export function __resetRewardEntityForTests() {
+  rewardEntity = null
 }
