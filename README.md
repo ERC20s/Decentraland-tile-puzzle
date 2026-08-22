@@ -28,3 +28,11 @@ Project layout
 - src/index.ts: scene entry point.
 - src/ui.tsx: puzzle grid, drag-and-drop, and shuffle UI.
 - src/reward.ts: win song and reward entity, including the mute/replay toggle.
+- scene.json: the SDK7 scene manifest (metadata, main entry point, permissions) that Decentraland reads to load the scene.
+- main.crdt: the compiled scene/entity state SDK7 generates from the composite, used at runtime.
+- assets/scene/main.composite: the composite entity layout authored in the Decentraland builder that produces main.crdt.
+- models/machine.glb: the 3D model used for the reward entity referenced in src/reward.ts.
+- models/grass/FloorBaseGrass_01.glb and models/grass/Floor_Grass01.png.png: the grass floor model and its texture, shown as part of the win reward.
+- images/: the 25 numbered tile images (image1x1.png through image5x5.png) that fill the 5x5 puzzle grid built in src/ui.tsx.
+- music/: the win-song audio files (champ.mp3, champ2.mp3, champ3.mp3) played by the reward entity in src/reward.ts.
+- .dclignore: lists files excluded when the scene is deployed.
