@@ -66,3 +66,14 @@ test('setupUi onWin injection and simulateSwap trigger win', () => {
   expect(result).toBe(true);
   expect(calledOnWin).toBe(true);
 });
+
+test('setupUi resetToOriginal triggers win and returns true', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const setUiMock = makeSetUiRendererMock();
+  const onWinSpy = makeOnWinSpy();
+  const api = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock, onWin: onWinSpy as any });
+  // resetToOriginal should restore module-level original images and trigger onWin
+  const result = api.resetToOriginal();
+  expect(result).toBe(true);
+  expect(calledOnWin).toBe(true);
+});
