@@ -58,10 +58,11 @@ let highlight = {
   },
 };
 
-export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer?: (renderer: any) => void }) {
+export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer?: (renderer: any) => void; onWin?: () => void }) {
   // dependency fallbacks: use injected functions for tests or fall back to runtime implementations
   const runResetPuzzle = deps && deps.resetPuzzle ? deps.resetPuzzle : resetPuzzle;
   const runSetUiRenderer = deps && deps.setUiRenderer ? deps.setUiRenderer : ((renderer: any) => ReactEcsRenderer.setUiRenderer(renderer));
+  const runOnWin = deps && deps.onWin ? deps.onWin : Reward;
 
   let dragIndex = -1;
   let log = "Click a tile to select it, then click another to swap.";
@@ -121,7 +122,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
 
     if (checkIfOriginalImages(boxes, originalImages)) {
       log = "Congratulations! The images are back in the original positions! Turn your sound on!";
-      Reward();
+      runOnWin();
     }
 
     resetHighlight();
@@ -233,4 +234,15 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
   );
 
   runSetUiRenderer(uiComponent);
+
+  return {
+    simulateSwap: (i: number, j: number) => {
+      swapTiles(boxes, i, j);
+      if (checkIfOriginalImages(boxes, originalImages)) {
+        runOnWin();
+        return true;
+      }
+      return false;
+    }
+  };
 }
