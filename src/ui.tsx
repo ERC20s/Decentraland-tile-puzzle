@@ -120,9 +120,17 @@ export function setupUi() {
   };
 
   const ShuffleBoard = () => {
-    resetPuzzle(boxes, imageUrls.slice());
-    resetHighlight();
-    log = "Board shuffled. Click a tile to select it.";
+    try {
+      resetPuzzle(boxes, imageUrls.slice());
+      resetHighlight();
+      log = "Board shuffled. Click a tile to select it.";
+    } catch (e: any) {
+      // Do not allow a resetPuzzle exception to bubble into the Decentraland runtime.
+      console.warn('[ui] ShuffleBoard: resetPuzzle failed', e);
+      resetHighlight();
+      const msg = e instanceof Error ? e.message : String(e);
+      log = `Shuffle failed: ${msg}`;
+    }
   };
 
   const uiComponent = () => (
