@@ -41,11 +41,14 @@ test('swapTiles swaps exactly two tiles', () => {
   }
 });
 
-test('resetPuzzle reshuffles and assigns images', () => {
+test('resetPuzzle reshuffles and assigns images and does not mutate input array', () => {
   const {boxes, images, original} = makeBoxesAndImages();
+  const imagesBefore = images.slice();
   resetPuzzle(boxes, images);
   // images should be a permutation of original values
   const after = boxes.map(b => b.box.image);
   expect(after.length).toBe(original.length);
   expect(after.sort()).toEqual(original.sort());
+  // input images array should not have been mutated
+  expect(images).toEqual(imagesBefore);
 });

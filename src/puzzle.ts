@@ -41,11 +41,13 @@ export const checkIfOriginalImages = (boxes: BoxInfo[], originalImages: string[]
   return true;
 };
 
-// Shuffle imageUrls in-place and assign to boxes images
+// Shuffle imageUrls without mutating the supplied array and assign to boxes images
 export const resetPuzzle = (boxes: BoxInfo[], imageUrls: string[]): void => {
-  shuffleArray(imageUrls);
+  // Work on a copy so callers' arrays are not mutated
+  const shuffled = imageUrls.slice();
+  shuffleArray(shuffled);
   for (let i = 0; i < boxes.length; i++) {
-    boxes[i].box.image = imageUrls[i];
+    boxes[i].box.image = shuffled[i];
   }
 };
 

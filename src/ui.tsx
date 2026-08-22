@@ -116,7 +116,7 @@ export function setupUi() {
   };
 
   const ShuffleBoard = () => {
-    resetPuzzle(boxes, imageUrls);
+    resetPuzzle(boxes, imageUrls.slice());
     resetHighlight();
     log = "Board shuffled. Click a tile to select it.";
   };
