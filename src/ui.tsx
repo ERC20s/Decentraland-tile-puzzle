@@ -58,7 +58,11 @@ let highlight = {
   },
 };
 
-export function setupUi() {
+export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer?: (renderer: any) => void }) {
+  // dependency fallbacks: use injected functions for tests or fall back to runtime implementations
+  const runResetPuzzle = deps && deps.resetPuzzle ? deps.resetPuzzle : resetPuzzle;
+  const runSetUiRenderer = deps && deps.setUiRenderer ? deps.setUiRenderer : ((renderer: any) => ReactEcsRenderer.setUiRenderer(renderer));
+
   let dragIndex = -1;
   let log = "Click a tile to select it, then click another to swap.";
 
@@ -82,7 +86,7 @@ export function setupUi() {
   // canonical imageUrls order is preserved and errors are handled consistently
   // with ShuffleBoard.
   try {
-    resetPuzzle(boxes, imageUrls.slice());
+    runResetPuzzle(boxes, imageUrls.slice());
   } catch (e: any) {
     // Do not allow a resetPuzzle exception to bubble into the Decentraland runtime.
     console.warn('[ui] initial resetPuzzle failed', e);
@@ -125,7 +129,7 @@ export function setupUi() {
 
   const ShuffleBoard = () => {
     try {
-      resetPuzzle(boxes, imageUrls.slice());
+      runResetPuzzle(boxes, imageUrls.slice());
       resetHighlight();
       log = "Board shuffled. Click a tile to select it.";
     } catch (e: any) {
@@ -164,7 +168,7 @@ export function setupUi() {
           height: 25,
           margin: { top: 0, right: 25 },
         }}
-        onMouseDown={() => ReactEcsRenderer.setUiRenderer(close)}
+        onMouseDown={() => runSetUiRenderer(close)}
       />
       <Button
         key={"shuffle"}
@@ -223,10 +227,10 @@ export function setupUi() {
           height: 25,
           margin: { top: 0, left: 0 },
         }}
-        onMouseDown={() => ReactEcsRenderer.setUiRenderer(uiComponent)}
+        onMouseDown={() => runSetUiRenderer(uiComponent)}
       />
     </UiEntity>
   );
 
-  ReactEcsRenderer.setUiRenderer(uiComponent);
+  runSetUiRenderer(uiComponent);
 }
