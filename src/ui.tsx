@@ -58,15 +58,6 @@ let highlight = {
   },
 };
 
-// Do not mutate the module-level imageUrls constant. Create a shuffled copy for the
-// initial board assignment so other code (for example resetPuzzle(boxes, imageUrls.slice()))
-// can rely on imageUrls staying in its canonical order.
-const startImages = imageUrls.slice();
-shuffleArray(startImages);
-for (let i = 0; i < boxes.length; i++) {
-  boxes[i].box.image = startImages[i];
-}
-
 export function setupUi() {
   let dragIndex = -1;
   let log = "Click a tile to select it, then click another to swap.";
@@ -85,6 +76,19 @@ export function setupUi() {
     };
     dragIndex = -1;
   };
+
+  // Perform the initial board assignment at runtime inside setupUi rather than
+  // at module load time. Use resetPuzzle with a copied imageUrls array so the
+  // canonical imageUrls order is preserved and errors are handled consistently
+  // with ShuffleBoard.
+  try {
+    resetPuzzle(boxes, imageUrls.slice());
+  } catch (e: any) {
+    // Do not allow a resetPuzzle exception to bubble into the Decentraland runtime.
+    console.warn('[ui] initial resetPuzzle failed', e);
+    const msg = e instanceof Error ? e.message : String(e);
+    log = `Shuffle failed: ${msg}`;
+  }
 
   // Single deterministic click handler: first click selects, same click deselects,
   // different click swaps immediately and checks for win.
