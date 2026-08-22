@@ -63,11 +63,10 @@ for (let i = 0; i < boxes.length; i++) {
   boxes[i].box.image = imageUrls[i];
 }
 
-
 export function setupUi() {
   let dragIndex = -1;
-  let log = "Click and drag to move the boxes.";
-  let dragger = false
+  let log = "Click a tile to select it, then click another to swap.";
+
   const resetHighlight = () => {
     highlight = {
       box: {
@@ -81,54 +80,32 @@ export function setupUi() {
       },
     };
     dragIndex = -1;
-    dragger = false
   };
 
-  const DragThis = (boxData: BoxInfo, index: number) => {
-    if (dragger) {
-      return;
-    }else {
-    if (dragIndex !== -1) {
-      log = "You've already clicked a box. Click another to complete the drop.";
-      return;
-    } else {
+  // Single deterministic click handler: first click selects, same click deselects,
+  // different click swaps immediately and checks for win.
+  const handleClick = (boxData: BoxInfo, index: number) => {
+    if (dragIndex === -1) {
+      // select
       highlight.box.height = boxData.box.height + 10;
       highlight.box.width = boxData.box.width + 10;
       highlight.box.top = boxData.box.top - 5;
       highlight.box.left = boxData.box.left - 5;
-      log = "Box is highlighted. Dragging started from box " + index;
-    }
-    dragIndex = index;
-  }
-  };
-
-  const DropThat = (index: number) => {
-    if (dragger) {
-      if (dragIndex === index) {
-        log = "You clicked the same box twice.";
-        resetHighlight();
-        return;
-      } else {
-        log = "You swapped tiles!";
-    }
-  }
-    else {
-    if (dragIndex === -1) {
-      log = "You need to click a box to drag first.";
-      return;
-    } else if (dragIndex === index) {
-      log = "Click another box to swap.";
-      dragger = true
+      log = "Box is highlighted. Click another to swap or click again to cancel.";
+      dragIndex = index;
       return;
     }
-  }
 
-    const dragBox = boxes[dragIndex - 1];
-    const dropBox = boxes[index - 1];
+    if (dragIndex === index) {
+      // deselect
+      log = "Selection cleared.";
+      resetHighlight();
+      return;
+    }
 
+    // perform swap between dragIndex and index
     swapTiles(boxes, dragIndex, index);
-
-    log = `Dropped box ${dragIndex} on box ${index}.`;
+    log = `Swapped box ${dragIndex} with box ${index}.`;
 
     if (checkIfOriginalImages(boxes, originalImages)) {
       log = "Congratulations! The images are back in the original positions! Turn your sound on!";
@@ -141,9 +118,8 @@ export function setupUi() {
   const ShuffleBoard = () => {
     resetPuzzle(boxes, imageUrls);
     resetHighlight();
-    log = "Board shuffled. Click and drag to move the boxes.";
+    log = "Board shuffled. Click a tile to select it.";
   };
-
 
   const uiComponent = () => (
     <UiEntity
@@ -159,7 +135,7 @@ export function setupUi() {
           height: highlight.box.height, // Adjusted to add unit
           margin: { top: highlight.box.top, left: highlight.box.left },
           positionType: 'absolute',
-  
+
         }}
         uiBackground={{ color: Color4.create(0.5, 0.3, 0.7, 0.6) }}
       >
@@ -201,8 +177,7 @@ export function setupUi() {
             },
             color: Color4.White(),
           }}
-          onMouseDown={() => DragThis(box, box.box.index)}
-          onMouseUp={() => DropThat(box.box.index)}
+          onMouseDown={() => handleClick(box, box.box.index)}
         />
       ))}
       <Label
