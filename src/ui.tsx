@@ -117,6 +117,10 @@ export function setupUi() {
   let dragIndex = -1;
   let log = "Click and drag to move the boxes.";
   let dragger = false
+
+  // Track the selected song (1..3). Default to 2 to match previous default champ2.mp3
+  let selectedTrack = 2
+
   const resetHighlight = () => {
     highlight = {
       box: {
@@ -132,6 +136,18 @@ export function setupUi() {
     dragIndex = -1;
     dragger = false
   };
+
+  const getTrackPath = (n: number) => {
+    if (n === 1) return 'music/champ.mp3'
+    if (n === 3) return 'music/champ3.mp3'
+    return 'music/champ2.mp3'
+  }
+
+  const selectTrack = (n: number) => {
+    selectedTrack = n
+    // Re-render the UI so the selected button can reflect the change if desired
+    ReactEcsRenderer.setUiRenderer(uiComponent)
+  }
 
   const DragThis = (boxData: BoxInfo, index: number) => {
     if (dragger) {
@@ -181,7 +197,7 @@ export function setupUi() {
 
     if (checkIfOriginalImages()) {
       log = "Congratulations! The images are back in the original positions! Turn your sound on!";
-      Reward();
+      Reward(getTrackPath(selectedTrack));
     }
 
     resetHighlight();
@@ -223,6 +239,39 @@ export function setupUi() {
         }}
         onMouseDown={() => ReactEcsRenderer.setUiRenderer(close)}
       />
+
+      {/* Song selector buttons placed next to Shuffle to keep UI compact */}
+      <Button
+        key={"song1"}
+        value={"1"}
+        uiTransform={{
+          width: 22,
+          height: 22,
+          margin: { top: 0, left: 100 },
+        }}
+        onMouseDown={() => selectTrack(1)}
+      />
+      <Button
+        key={"song2"}
+        value={"2"}
+        uiTransform={{
+          width: 22,
+          height: 22,
+          margin: { top: 0, left: 130 },
+        }}
+        onMouseDown={() => selectTrack(2)}
+      />
+      <Button
+        key={"song3"}
+        value={"3"}
+        uiTransform={{
+          width: 22,
+          height: 22,
+          margin: { top: 0, left: 160 },
+        }}
+        onMouseDown={() => selectTrack(3)}
+      />
+
       <Button
         key={"shuffle"}
         value={"Shuffle"}
