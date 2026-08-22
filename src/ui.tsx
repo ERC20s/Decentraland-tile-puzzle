@@ -106,6 +106,13 @@ const checkIfOriginalImages = () => {
   return true;
 };
 
+const resetPuzzle = () => {
+  shuffleArray(imageUrls);
+  for (let i = 0; i < boxes.length; i++) {
+    boxes[i].box.image = imageUrls[i];
+  }
+};
+
 export function setupUi() {
   let dragIndex = -1;
   let log = "Click and drag to move the boxes.";
@@ -180,6 +187,12 @@ export function setupUi() {
     resetHighlight();
   };
 
+  const ShuffleBoard = () => {
+    resetPuzzle();
+    resetHighlight();
+    log = "Board shuffled. Click and drag to move the boxes.";
+  };
+
 
   const uiComponent = () => (
     <UiEntity
@@ -209,6 +222,16 @@ export function setupUi() {
           margin: { top: 0, right: 25 },
         }}
         onMouseDown={() => ReactEcsRenderer.setUiRenderer(close)}
+      />
+      <Button
+        key={"shuffle"}
+        value={"Shuffle"}
+        uiTransform={{
+          width: 90,
+          height: 25,
+          margin: { top: 0, left: 0 },
+        }}
+        onMouseDown={() => ShuffleBoard()}
       />
       {boxes.map((box) => (
         <Button
