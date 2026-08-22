@@ -117,6 +117,15 @@ export function setupUi() {
   let dragIndex = -1;
   let log = "Click and drag to move the boxes.";
   let dragger = false
+  // selected track index: 1,2,3 correspond to files champ.mp3, champ2.mp3, champ3.mp3
+  let selectedTrack = 2 // keep the existing default to champ2.mp3
+
+  const getTrackPath = (idx: number) => {
+    if (idx === 1) return 'music/champ.mp3'
+    if (idx === 2) return 'music/champ2.mp3'
+    return 'music/champ3.mp3'
+  }
+
   const resetHighlight = () => {
     highlight = {
       box: {
@@ -181,7 +190,8 @@ export function setupUi() {
 
     if (checkIfOriginalImages()) {
       log = "Congratulations! The images are back in the original positions! Turn your sound on!";
-      Reward();
+      // pass the selected track into Reward so the chosen song plays
+      Reward(getTrackPath(selectedTrack));
     }
 
     resetHighlight();
@@ -233,6 +243,48 @@ export function setupUi() {
         }}
         onMouseDown={() => ShuffleBoard()}
       />
+
+      {/* Song selection controls: three small buttons and a label showing current choice */}
+      <Button
+        key={"song1"}
+        value={"Song 1"}
+        uiTransform={{
+          width: 60,
+          height: 25,
+          margin: { top: 0, left: 110 },
+        }}
+        onMouseDown={() => { selectedTrack = 1 }}
+      />
+      <Button
+        key={"song2"}
+        value={"Song 2"}
+        uiTransform={{
+          width: 60,
+          height: 25,
+          margin: { top: 0, left: 180 },
+        }}
+        onMouseDown={() => { selectedTrack = 2 }}
+      />
+      <Button
+        key={"song3"}
+        value={"Song 3"}
+        uiTransform={{
+          width: 60,
+          height: 25,
+          margin: { top: 0, left: 250 },
+        }}
+        onMouseDown={() => { selectedTrack = 3 }}
+      />
+      <Label
+        value={`Song: ${selectedTrack}/3`}
+        uiTransform={{
+          width: 'auto',
+          height: 'auto',
+          margin: { top: 0, left: 320 },
+          positionType: 'absolute',
+        }}
+      />
+
       {boxes.map((box) => (
         <Button
           key={`box${box.box.index}`}

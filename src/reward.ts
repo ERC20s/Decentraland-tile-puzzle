@@ -8,15 +8,25 @@ import { UiCanvasInformation, Entity, InputAction, ColliderLayer, Animator, Audi
 // old pointer handlers registered.
 let rewardEntity: Entity | null = null
 
-export function Reward() {
+export function Reward(track?: string) {
   if (rewardEntity !== null) {
-    AudioSource.getMutable(rewardEntity).playing = true
+    const audio = AudioSource.getMutable(rewardEntity)
+    if (track) {
+      // update the audio clip if a different track is requested
+      // audioClipUrl is writable on the mutable AudioSource in this SDK
+      // so we can swap which file plays for subsequent wins without recreating the entity
+      // (if the runtime doesn't allow changing the url, the first-selected track will still play)
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      audio.audioClipUrl = track
+    }
+    audio.playing = true
     return
   }
 
   const reward = engine.addEntity()
   AudioSource.create(reward, {
-    audioClipUrl: 'music/champ2.mp3',
+    audioClipUrl: track ?? 'music/champ2.mp3',
     loop: false,
     playing: true,
   })
