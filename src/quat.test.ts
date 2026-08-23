@@ -27,4 +27,13 @@ describe('normalizeQuaternionOrIdentity', () => {
     const out = normalizeQuaternionOrIdentity(q)
     expect(out).toEqual({ x: 0, y: 0, z: 0, w: 1 })
   })
+
+  it('returns identity for tiny finite-norm quaternion (<= Number.EPSILON)', () => {
+    // Construct a quaternion whose norm is finite but smaller than Number.EPSILON.
+    // This exercises the guard in normalizeQuaternionOrIdentity that avoids
+    // dividing by a subnormal / tiny number and returns the identity instead.
+    const q = { x: Number.EPSILON / 10, y: 0, z: 0, w: 0 }
+    const out = normalizeQuaternionOrIdentity(q)
+    expect(out).toEqual({ x: 0, y: 0, z: 0, w: 1 })
+  })
 })
