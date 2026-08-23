@@ -74,6 +74,35 @@ export const resetPuzzle = (boxes: BoxInfo[], imageUrls: string[], rng?: () => n
     // otherwise retry up to maxAttempts
   }
 
+  // If after retries we still have an assignment identical to the current board,
+  // and there exists at least one different-permutation possible, make a
+  // deterministic minimal change so the Shuffle action is not a silent no-op.
+  // Find out if toAssign matches current boxes now.
+  let stillIdentical = true;
+  for (let i = 0; i < boxes.length; i++) {
+    if (boxes[i].box.image !== toAssign[i]) {
+      stillIdentical = false;
+      break;
+    }
+  }
+
+  if (stillIdentical && boxes.length >= 2) {
+    // Try to find two indices with differing images to swap.
+    let swapped = false;
+    for (let a = 0; a < toAssign.length - 1 && !swapped; a++) {
+      for (let b = a + 1; b < toAssign.length; b++) {
+        if (toAssign[a] !== toAssign[b]) {
+          const tmp = toAssign[a];
+          toAssign[a] = toAssign[b];
+          toAssign[b] = tmp;
+          swapped = true;
+          break;
+        }
+      }
+    }
+    // If no swap found, all images are identical and we leave toAssign as-is.
+  }
+
   // assign whatever toAssign we have (may be identical if all attempts matched)
   for (let i = 0; i < boxes.length; i++) {
     boxes[i].box.image = toAssign[i];

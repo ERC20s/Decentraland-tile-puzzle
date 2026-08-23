@@ -133,3 +133,28 @@ test('resetPuzzle avoids perfect no-op shuffle when possible', () => {
   }
   expect(changed).toBe(true);
 });
+
+// New deterministic fallback test: RNG that always produces identical shuffles
+// ensures resetPuzzle makes a minimal deterministic change instead of no-op.
+
+test('resetPuzzle makes minimal deterministic change when repeated shuffles match current board', () => {
+  const {boxes, images, original} = makeBoxesAndImages();
+  // Force boxes to a known state equal to original
+  for (let i = 0; i < boxes.length; i++) boxes[i].box.image = original[i];
+
+  // RNG that always returns 0 causes identical shuffle attempts every time
+  const alwaysZeroRng = makeCycleRng([0]);
+  resetPuzzle(boxes, images, alwaysZeroRng);
+  const after = boxes.map(b => b.box.image);
+
+  // Because images include at least two distinct values, the deterministic
+  // fallback should have swapped two differing entries so board must change.
+  let changed = false;
+  for (let i = 0; i < after.length; i++) {
+    if (after[i] !== original[i]) {
+      changed = true;
+      break;
+    }
+  }
+  expect(changed).toBe(true);
+});
