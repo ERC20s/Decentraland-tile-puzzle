@@ -132,18 +132,15 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
 
   const ResetBoard = () => {
     try {
-      for (let i = 0; i < boxes.length; i++) {
-        boxes[i].box.image = originalImages[i];
-      }
+      // Reset restarts the puzzle the same way Shuffle does: it must never
+      // leave the board solved, so it never calls checkIfOriginalImages /
+      // runOnWin. It reuses the same runResetPuzzle path as ShuffleBoard.
+      runResetPuzzle(boxes, imageUrls.slice());
       resetHighlight();
       moveCount = 0;
-      log = "Board reset to original images.";
-      if (checkIfOriginalImages(boxes, originalImages)) {
-        log = "Congratulations! The images are back in the original positions! Turn your sound on!";
-        runOnWin();
-      }
+      log = "Board reset. Click a tile to select it.";
     } catch (e: any) {
-      console.warn('[ui] ResetBoard failed', e);
+      console.warn('[ui] ResetBoard: resetPuzzle failed', e);
       const msg = e instanceof Error ? e.message : String(e);
       log = `Reset failed: ${msg}`;
       resetHighlight();
@@ -288,18 +285,15 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
       return false;
     },
     resetToOriginal: () => {
+      // Mirrors ResetBoard: restarts the puzzle via runResetPuzzle instead of
+      // restoring originalImages directly, so it can never trivially satisfy
+      // checkIfOriginalImages and fire runOnWin on its own.
       try {
-        for (let i = 0; i < boxes.length; i++) {
-          boxes[i].box.image = originalImages[i];
-        }
+        runResetPuzzle(boxes, imageUrls.slice());
         moveCount = 0;
-        if (checkIfOriginalImages(boxes, originalImages)) {
-          runOnWin();
-          return true;
-        }
         return false;
       } catch (e: any) {
-        console.warn('[ui] resetToOriginal failed', e);
+        console.warn('[ui] resetToOriginal: resetPuzzle failed', e);
         return false;
       }
     },
