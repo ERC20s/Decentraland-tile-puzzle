@@ -67,15 +67,19 @@ test('setupUi onWin injection and simulateSwap trigger win', () => {
   expect(calledOnWin).toBe(true);
 });
 
-test('setupUi resetToOriginal triggers win and returns true', () => {
+test('setupUi resetToOriginal restarts the puzzle without triggering win', () => {
   const resetMock = makeResetPuzzleMock(false);
   const setUiMock = makeSetUiRendererMock();
   const onWinSpy = makeOnWinSpy();
+  calledReset = false;
   const api = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock, onWin: onWinSpy as any });
-  // resetToOriginal should restore module-level original images and trigger onWin
+  calledReset = false;
+  // resetToOriginal should re-run resetPuzzle (like Shuffle) and must never
+  // auto-win, since the mock always leaves the board unsolved (one swap away).
   const result = api.resetToOriginal();
-  expect(result).toBe(true);
-  expect(calledOnWin).toBe(true);
+  expect(calledReset).toBe(true);
+  expect(result).toBe(false);
+  expect(calledOnWin).toBe(false);
 });
 
 test('setupUi move counter increments on simulateSwap', () => {
@@ -108,4 +112,5 @@ test('setupUi move counter stays 0 after resetToOriginal', () => {
   expect(api.getMoveCount()).toBe(1);
   api.resetToOriginal();
   expect(api.getMoveCount()).toBe(0);
+  expect(calledOnWin).toBe(false);
 });
