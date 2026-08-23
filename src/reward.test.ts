@@ -38,6 +38,7 @@ vi.mock('@dcl/sdk/ecs', () => {
 
 // Now import the module under test; the imports above will be used by it.
 import * as RewardModule from './reward'
+import * as ecs from '@dcl/sdk/ecs'
 
 beforeEach(() => {
   createdEntities = []
@@ -57,6 +58,29 @@ describe('Reward', () => {
     expect(lastCreateArgs).not.toBeNull()
     expect(lastCreateArgs.opts.audioClipUrl).toBe('music/champ2.mp3')
     expect(lastCreateArgs.opts.playing).toBe(true)
+
+    // Assert that Transform.create was called and its rotation is a valid normalized quaternion
+    const transformCreateMock: any = (ecs as any).Transform.create
+    expect(transformCreateMock).toBeDefined()
+    expect(transformCreateMock.mock).toBeDefined()
+    expect(transformCreateMock.mock.calls.length).toBeGreaterThanOrEqual(1)
+
+    const transformCallArgs = transformCreateMock.mock.calls[0]
+    // transformCallArgs = [entity, opts]
+    const opts = transformCallArgs[1]
+    expect(opts).toBeDefined()
+    const rot = opts.rotation
+    expect(rot).toBeDefined()
+
+    // All components should be numeric and finite
+    for (const k of ['x', 'y', 'z', 'w']) {
+      expect(typeof (rot as any)[k]).toBe('number')
+      expect(Number.isFinite((rot as any)[k])).toBe(true)
+    }
+
+    // Squared norm should be approximately 1
+    const norm2 = (rot.x * rot.x) + (rot.y * rot.y) + (rot.z * rot.z) + (rot.w * rot.w)
+    expect(norm2).toBeCloseTo(1, 6)
   })
 
   it('reuses reward entity and sets AudioSource.getMutable().playing = true on subsequent calls', () => {
