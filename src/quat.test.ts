@@ -15,4 +15,16 @@ describe('normalizeQuaternionOrIdentity', () => {
     expect(norm).toBeGreaterThan(0.9999)
     expect(norm).toBeLessThan(1.0001)
   })
+
+  it('returns identity for quaternion containing NaN', () => {
+    const q = { x: NaN, y: 0, z: 0, w: 1 }
+    const out = normalizeQuaternionOrIdentity(q)
+    expect(out).toEqual({ x: 0, y: 0, z: 0, w: 1 })
+  })
+
+  it('returns identity for quaternion containing Infinity', () => {
+    const q = { x: Infinity, y: 0, z: 0, w: 1 }
+    const out = normalizeQuaternionOrIdentity(q)
+    expect(out).toEqual({ x: 0, y: 0, z: 0, w: 1 })
+  })
 })
