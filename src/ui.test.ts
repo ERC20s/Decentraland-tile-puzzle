@@ -77,3 +77,35 @@ test('setupUi resetToOriginal triggers win and returns true', () => {
   expect(result).toBe(true);
   expect(calledOnWin).toBe(true);
 });
+
+test('setupUi move counter increments on simulateSwap', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const setUiMock = makeSetUiRendererMock();
+  const api = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock });
+  expect(api.getMoveCount()).toBe(0);
+  api.simulateSwap(0, 1);
+  expect(api.getMoveCount()).toBe(1);
+  api.simulateSwap(0, 1);
+  expect(api.getMoveCount()).toBe(2);
+});
+
+test('setupUi move counter resets to 0 on simulateShuffle', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const setUiMock = makeSetUiRendererMock();
+  const api = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock });
+  api.simulateSwap(0, 1);
+  expect(api.getMoveCount()).toBe(1);
+  api.simulateShuffle();
+  expect(api.getMoveCount()).toBe(0);
+});
+
+test('setupUi move counter stays 0 after resetToOriginal', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const setUiMock = makeSetUiRendererMock();
+  const onWinSpy = makeOnWinSpy();
+  const api = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock, onWin: onWinSpy as any });
+  api.simulateSwap(0, 1);
+  expect(api.getMoveCount()).toBe(1);
+  api.resetToOriginal();
+  expect(api.getMoveCount()).toBe(0);
+});
