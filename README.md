@@ -40,3 +40,27 @@ Project layout
 - images/: the 25 numbered tile images (image1x1.png through image5x5.png) that fill the 5x5 puzzle grid built in src/ui.tsx.
 - music/: the win-song audio files (champ.mp3, champ2.mp3, champ3.mp3) played by the reward entity in src/reward.ts.
 - .dclignore: lists files excluded when the scene is deployed.
+
+Troubleshooting: Creator Hub "The launch link is not trusted" / creator-hub-bin-path
+
+Users have reported seeing the Creator Hub error: "The launch link is not trusted" that mentions creator-hub-bin-path. This error often indicates a mismatch between what Creator Hub expects in the packaged scene and what is present locally (for example the compiled runtime bundle or packaging rules), rather than a runtime bug inside this project's source code. Add these checks when you encounter the error:
+
+- Verify scene.json points at the compiled runtime bundle. In this repository scene.json currently declares the runtime entry as: "main": "bin/index.js". If that value differs from the file you build, Creator Hub may refuse to launch.
+- Ensure you have run the build step so bin/index.js exists. package.json includes the build script: "build": "sdk-commands build". Run npm run build before using Creator Hub so the bin/ bundle and other build artifacts are generated.
+- Confirm bin/ and main.crdt are present in the project root and are not excluded by .dclignore. If the compiled bundle or main.crdt are missing from the upload package, Creator Hub can report trust/packaging errors.
+- If the error persists, retry the Creator Hub tool and check Creator Hub's trust/permissions settings. Collect the full exact error text and the local environment details (node --version, npm --version, the SDK version from package.json or package-lock), and whether you ran npm run build immediately before launching. These details make it easier to triage whether the cause is local packaging, a Creator Hub client bug, or something else.
+
+Why this matters
+
+- Two members reported the same launch error in the suggestions box. Documenting the most likely local causes will reduce repeated tickets, speed onboarding, and help contributors collect reproducible diagnostics for external issues.
+
+Risks and trade-offs
+
+- If the root cause is a Creator Hub binary bug, this documentation will not fix the bug itself; it will, however, give steps to reproduce and gather useful information for a follow-up report.
+- This is a documentation-only change; it does not modify runtime behaviour or tests.
+
+How we will verify success
+
+- A contributor follows the README steps on a fresh environment and either succeeds in launching Creator Hub after running npm run build or can capture the exact error text and environment details for a bug report. A reduction in repeated unclear reports about the Creator Hub launch error will also indicate this helped.
+
+If this passes, a contributor will open a pull request that adds the Troubleshooting section to README.md; a separate Code proposal will be opened to merge that pull request.
