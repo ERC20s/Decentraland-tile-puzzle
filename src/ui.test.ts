@@ -77,3 +77,25 @@ test('setupUi resetToOriginal triggers win and returns true', () => {
   expect(result).toBe(true);
   expect(calledOnWin).toBe(true);
 });
+
+test('move counter increments on a real swap via simulateSwap', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const setUiMock = makeSetUiRendererMock();
+  const api = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock });
+  expect(api.getMoveCount()).toBe(0);
+  // swap two tiles that are not already a winning configuration (1-based indices)
+  api.simulateSwap(4, 9);
+  expect(api.getMoveCount()).toBe(1);
+  api.simulateSwap(4, 9);
+  expect(api.getMoveCount()).toBe(2);
+});
+
+test('move counter resets to 0 when the board is shuffled', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const setUiMock = makeSetUiRendererMock();
+  const api = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock });
+  api.simulateSwap(4, 9);
+  expect(api.getMoveCount()).toBe(1);
+  api.simulateShuffle();
+  expect(api.getMoveCount()).toBe(0);
+});

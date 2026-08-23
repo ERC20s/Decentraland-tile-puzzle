@@ -66,6 +66,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
 
   let dragIndex = -1;
   let log = "Click a tile to select it, then click another to swap.";
+  let moveCount = 0;
 
   const resetHighlight = () => {
     highlight = {
@@ -118,6 +119,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
 
     // perform swap between dragIndex and index
     swapTiles(boxes, dragIndex, index);
+    moveCount++;
     log = `Swapped box ${dragIndex} with box ${index}.`;
 
     if (checkIfOriginalImages(boxes, originalImages)) {
@@ -134,6 +136,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
         boxes[i].box.image = originalImages[i];
       }
       resetHighlight();
+      moveCount = 0;
       log = "Board reset to original images.";
       if (checkIfOriginalImages(boxes, originalImages)) {
         log = "Congratulations! The images are back in the original positions! Turn your sound on!";
@@ -151,6 +154,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     try {
       runResetPuzzle(boxes, imageUrls.slice());
       resetHighlight();
+      moveCount = 0;
       log = "Board shuffled. Click a tile to select it.";
     } catch (e: any) {
       // Do not allow a resetPuzzle exception to bubble into the Decentraland runtime.
@@ -239,6 +243,15 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
           positionType: 'absolute',
         }}
       />
+      <Label
+        value={`Moves: ${moveCount}`}
+        uiTransform={{
+          width: 'auto',
+          height: 'auto',
+          margin: { top: 35, left: 110 },
+          positionType: 'absolute',
+        }}
+      />
     </UiEntity>
   );
 
@@ -267,6 +280,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
   return {
     simulateSwap: (i: number, j: number) => {
       swapTiles(boxes, i, j);
+      moveCount++;
       if (checkIfOriginalImages(boxes, originalImages)) {
         runOnWin();
         return true;
@@ -287,6 +301,8 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
         console.warn('[ui] resetToOriginal failed', e);
         return false;
       }
-    }
+    },
+    getMoveCount: () => moveCount,
+    simulateShuffle: () => ShuffleBoard()
   };
 }
