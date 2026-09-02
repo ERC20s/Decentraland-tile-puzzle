@@ -1,4 +1,4 @@
-import { setupUi } from './ui';
+import { setupUi, __resetSetupUiForTests } from './ui';
 
 // Minimal mock types to track calls
 let calledReset = false;
@@ -36,6 +36,7 @@ afterEach(() => {
   calledSetUi = false;
   registeredRenderer = null;
   calledOnWin = false;
+  __resetSetupUiForTests();
 });
 
 test('setupUi calls injected resetPuzzle and registers renderer', () => {
@@ -282,4 +283,18 @@ test('setupUi move counter stays 0 after resetToOriginal', () => {
   api.resetToOriginal();
   expect(api.getMoveCount()).toBe(0);
   expect(calledOnWin).toBe(false);
+});
+
+test('calling setupUi twice reopens without reshuffling', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const setUiMock = makeSetUiRendererMock();
+  const api1 = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock });
+  const boardBefore = api1.getBoardImages();
+  const movesBefore = api1.getMoveCount();
+  // second call should not run resetPuzzle again nor change move count or board
+  const api2 = setupUi({ resetPuzzle: makeResetPuzzleMock(true), setUiRenderer: setUiMock });
+  expect(calledReset).toBe(false); // second call's injected reset shouldn't be invoked
+  expect(api2.getBoardImages()).toEqual(boardBefore);
+  expect(api2.getMoveCount()).toBe(movesBefore);
+  expect(calledSetUi).toBe(true); // renderer was registered again
 });
