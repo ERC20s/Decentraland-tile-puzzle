@@ -11,11 +11,14 @@ export interface BoxInfo {
   };
 }
 
-export const createBox = (index: number, top: number, left: number, image: string): BoxInfo => ({
+// A tile is square: `size` is both its width and its height, and the caller
+// lays tiles out on a pitch of exactly `size` so neighbours touch edge to edge.
+// The default keeps every existing caller (and test) on the historic 100px tile.
+export const createBox = (index: number, top: number, left: number, image: string, size: number = 100): BoxInfo => ({
   box: {
     index: index,
-    height: 100,
-    width: 100,
+    height: size,
+    width: size,
     text: "",
     image: image,
     top: top,
