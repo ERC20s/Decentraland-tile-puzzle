@@ -1,3 +1,55 @@
+import { vi, test, expect, afterEach } from 'vitest';
+
+// src/ui.tsx imports the real SDK UI modules ('@dcl/sdk/react-ecs',
+// '@dcl/sdk/ecs', '@dcl/sdk/math'), which expect the Decentraland runtime to be
+// present. These mocks mirror the ones already used in src/index.test.ts and
+// src/reward.test.ts and keep the module importable under plain Node. They are
+// hoisted above the import of './ui' by vitest.
+vi.mock('@dcl/sdk/react-ecs', () => {
+  const createElement = (type: any, props: any, ...children: any[]) => ({ type, props, children });
+  const ReactEcs = { createElement, Fragment: 'fragment' };
+  return {
+    default: ReactEcs,
+    createElement,
+    Fragment: 'fragment',
+    Button: 'button',
+    Label: 'label',
+    UiEntity: 'ui-entity',
+    ReactEcsRenderer: { setUiRenderer: vi.fn() }
+  };
+});
+
+vi.mock('@dcl/sdk/math', () => {
+  return {
+    Color4: {
+      create: (r = 0, g = 0, b = 0, a = 1) => ({ r, g, b, a }),
+      White: () => ({ r: 1, g: 1, b: 1, a: 1 }),
+      Black: () => ({ r: 0, g: 0, b: 0, a: 1 })
+    }
+  };
+});
+
+vi.mock('@dcl/sdk/ecs', () => {
+  return {
+    engine: { addEntity: vi.fn(() => 1) },
+    GltfContainer: { create: vi.fn() },
+    Transform: { create: vi.fn() },
+    Material: { create: vi.fn() },
+    Animator: { create: vi.fn() },
+    AvatarAttach: { create: vi.fn() },
+    VideoPlayer: { create: vi.fn() },
+    VisibilityComponent: { create: vi.fn() },
+    UiCanvasInformation: { get: vi.fn(() => ({ width: 1920, height: 1080 })) },
+    AudioSource: {
+      create: vi.fn(),
+      getMutable: vi.fn(() => ({ playing: true }))
+    },
+    pointerEventsSystem: { onPointerDown: vi.fn(() => () => {}) },
+    InputAction: { IA_POINTER: 0 },
+    ColliderLayer: { CL_POINTER: 1 }
+  };
+});
+
 import { setupUi } from './ui';
 
 // Minimal mock types to track calls
