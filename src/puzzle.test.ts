@@ -1,3 +1,4 @@
+import { test, expect } from 'vitest';
 import { createBox, shuffleArray, checkIfOriginalImages, resetPuzzle, swapTiles, BoxInfo } from './puzzle';
 
 function makeBoxesAndImages(): {boxes: BoxInfo[]; images: string[]; original: string[]} {

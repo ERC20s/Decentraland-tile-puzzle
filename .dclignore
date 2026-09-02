@@ -18,3 +18,5 @@ README.md
 *.zip
 *.rar
 src
+test
+vitest.config.ts

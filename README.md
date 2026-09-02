@@ -11,6 +11,18 @@ Requirements: Node.js >=16.0.0, npm >=6.0.0 (declared in package.json)
 - npm run build    (compiles the scene; runs "sdk-commands build" as declared in package.json)
 - npm run deploy   (publishes the scene; runs "sdk-commands deploy" as declared in package.json)
 
+Running the tests
+
+- npm test          (runs "vitest run" as declared in package.json; runs every src/**/*.test.ts once and exits)
+
+The suite runs under plain Node, outside the Decentraland runtime, so vitest.config.ts supplies what the runtime normally would:
+
+- test.globals is true, so tests may use bare test/expect/afterEach; the test files also import them from 'vitest' explicitly.
+- esbuild.jsxFactory is 'ReactEcs.createElement' (jsxFragment 'ReactEcs.Fragment'), because src/ui.tsx uses the ReactEcs pragma rather than React.
+- resolve.alias maps '~system/<name>' to test/stubs/system/<name>.ts. Those modules (for example '~system/RestrictedActions', imported by src/index.ts) exist only inside the scene runtime and cannot be resolved by Node. Add a new stub file to test/stubs/system/ when the scene starts importing another '~system' module.
+
+Tests that exercise scene code mock the SDK per file with vi.mock('@dcl/sdk/ecs'), vi.mock('@dcl/sdk/react-ecs') and vi.mock('@dcl/sdk/math') — see src/index.test.ts, src/reward.test.ts and src/ui.test.ts. Keep those mocks in the test file rather than making them global, so a test can still opt into the real module.
+
 Features
 
 - 5x5 image tile grid. src/ui.tsx builds a fixed grid (gridRows = 5, gridCols = 5, 25 tiles) from 25 numbered tile images.

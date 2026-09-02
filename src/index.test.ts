@@ -39,6 +39,15 @@ vi.mock('@dcl/sdk/ecs', () => {
   }
 })
 
+// src/index.ts calls initAssetPacks(...) at module load time with the mocked ECS
+// objects above. The real '@dcl/asset-packs' entrypoint expects a live engine,
+// so it is stubbed out; nothing in this file asserts on it.
+vi.mock('@dcl/asset-packs/dist/scene-entrypoint', () => {
+  return {
+    initAssetPacks: vi.fn()
+  }
+})
+
 // Mock './ui' so we can assert setupUi is invoked by the pointer handler
 vi.mock('./ui', () => {
   return {
