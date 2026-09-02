@@ -37,26 +37,36 @@ const boxes: BoxInfo[] = [];
 const gridRows = 5;
 const gridCols = 5;
 
+// The board geometry lives in exactly these three numbers. TILE is BOTH the
+// tile size and the pitch between neighbours: laying tiles out on any pitch
+// larger than TILE is what used to leave a 20px gutter between every pair of
+// tiles, so a solved board was 25 separated crops instead of one picture.
+// 5 * 100 = 500, so the board spans top 50..550 and left 100..600 and sits
+// entirely inside the 800x600 panel below (the old 120px pitch pushed the last
+// row to top 530 + 100 = 630, i.e. 30px past the bottom of the panel).
+export const TILE = 100;
+export const BOARD_TOP = 50;
+export const BOARD_LEFT = 100;
+
+// The panel the board is drawn in. Named here so the layout test can assert
+// containment against the same numbers the renderer uses.
+export const PANEL_WIDTH = 800;
+export const PANEL_HEIGHT = 600;
+
+// The selected tile is tinted instead of sitting on an underlay: with no
+// gutters left, an underlay drawn behind the tiles would be completely covered.
+const SELECTED_TINT = Color4.create(0.5, 0.3, 0.7, 1);
+
 for (let i = 0; i < gridRows; i++) {
   for (let j = 0; j < gridCols; j++) {
     const index = i * gridCols + j;
-    boxes.push(createBox(index + 1, 50 + i * 120, 100 + j * 120, imageUrls[index]));
+    boxes.push(
+      createBox(index + 1, BOARD_TOP + i * TILE, BOARD_LEFT + j * TILE, imageUrls[index], TILE)
+    );
   }
 }
 
 const originalImages = boxes.map(box => box.box.image);
-
-let highlight = {
-  box: {
-    height: 0,
-    width: 0,
-    text: "",
-    image: "",
-    top: 0,
-    left: 0,
-    click: "",
-  },
-};
 
 export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer?: (renderer: any) => void; onWin?: () => void }) {
   // dependency fallbacks: use injected functions for tests or fall back to runtime implementations
@@ -73,18 +83,10 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
   // solved order is already captured in originalImages at module load.
   let showPreview = false;
 
+  // Clearing the selection is now just clearing dragIndex: the selection is
+  // drawn as a tint on the selected tile itself (see SELECTED_TINT below), so
+  // there is no separate highlight entity left to reset.
   const resetHighlight = () => {
-    highlight = {
-      box: {
-        height: 0,
-        width: 0,
-        text: "",
-        image: "",
-        top: 0,
-        left: 0,
-        click: "",
-      },
-    };
     dragIndex = -1;
   };
 
@@ -113,11 +115,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     }
 
     if (dragIndex === -1) {
-      // select
-      highlight.box.height = boxData.box.height + 10;
-      highlight.box.width = boxData.box.width + 10;
-      highlight.box.top = boxData.box.top - 5;
-      highlight.box.left = boxData.box.left - 5;
+      // select: the tile itself is tinted while dragIndex points at it.
       log = "Box is highlighted. Click another to swap or click again to cancel.";
       dragIndex = index;
       return;
@@ -200,22 +198,11 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
   const uiComponent = () => (
     <UiEntity
       uiTransform={{
-        width: 800,
-        height: 600,
+        width: PANEL_WIDTH,
+        height: PANEL_HEIGHT,
         margin: '16px 0 8px 300px',
       }}
     >
-            <UiEntity
-         uiTransform={{
-          width: highlight.box.width, // Adjusted to add unit
-          height: highlight.box.height, // Adjusted to add unit
-          margin: { top: highlight.box.top, left: highlight.box.left },
-          positionType: 'absolute',
-
-        }}
-        uiBackground={{ color: Color4.create(0.5, 0.3, 0.7, 0.6) }}
-      >
-        </UiEntity>
       <Button
         key={"close"}
         value={"X"}
@@ -273,7 +260,11 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
               // solved picture. Preview off: the tile actually sitting here.
               src: showPreview ? originalImages[i] : box.box.image,
             },
-            color: Color4.White(),
+            // The selection: the chosen tile is drawn through a purple tint,
+            // every other tile through plain white (i.e. untinted). The board
+            // has no gutters any more, so there is nowhere for an underlay to
+            // show — the tile has to carry the highlight itself.
+            color: dragIndex === box.box.index ? SELECTED_TINT : Color4.White(),
           }}
           onMouseDown={() => handleClick(box, box.box.index)}
         />
@@ -349,6 +340,25 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
       }
     },
     simulateShuffle: () => ShuffleBoard(),
+    // Board geometry, so a test can assert the tiles actually touch and that
+    // the whole board fits inside the 800x600 panel.
+    getTileLayout: () => boxes.map(b => ({
+      index: b.box.index,
+      top: b.box.top,
+      left: b.box.left,
+      width: b.box.width,
+      height: b.box.height
+    })),
+    getPanelSize: () => ({ width: PANEL_WIDTH, height: PANEL_HEIGHT }),
+    // Selection, without the renderer: takes the 1-based tile index a click
+    // would carry and runs exactly the handler the Button runs.
+    simulateClick: (index: number) => {
+      const target = boxes[index - 1];
+      if (!target) return;
+      handleClick(target, target.box.index);
+    },
+    // -1 when nothing is selected, otherwise the 1-based index of the tinted tile.
+    getSelectedIndex: () => dragIndex,
     getMoveCount: () => moveCount,
     // Preview surface, so the behaviour is testable without the SDK renderer.
     togglePreview: () => TogglePreview(),

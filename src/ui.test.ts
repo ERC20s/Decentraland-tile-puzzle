@@ -180,6 +180,98 @@ test('setupUi shuffle and reset are refused while the preview is on', () => {
   expect(calledReset).toBe(true);
 });
 
+test('tiles are laid out edge to edge: pitch equals tile size on both axes', () => {
+  const api = setupUi({ resetPuzzle: makeResetPuzzleMock(false), setUiRenderer: makeSetUiRendererMock() });
+  const layout = api.getTileLayout();
+  expect(layout.length).toBe(25);
+
+  // Row by row: each tile starts exactly where its left neighbour ends, and
+  // shares the same top. No gutter anywhere.
+  for (let row = 0; row < 5; row++) {
+    for (let col = 0; col < 4; col++) {
+      const a = layout[row * 5 + col];
+      const b = layout[row * 5 + col + 1];
+      expect(b.left - a.left).toBe(a.width);
+      expect(b.top).toBe(a.top);
+    }
+  }
+
+  // Column by column: each tile starts exactly where the tile above it ends.
+  for (let col = 0; col < 5; col++) {
+    for (let row = 0; row < 4; row++) {
+      const a = layout[row * 5 + col];
+      const b = layout[(row + 1) * 5 + col];
+      expect(b.top - a.top).toBe(a.height);
+      expect(b.left).toBe(a.left);
+    }
+  }
+});
+
+test('the whole board fits inside the panel', () => {
+  const api = setupUi({ resetPuzzle: makeResetPuzzleMock(false), setUiRenderer: makeSetUiRendererMock() });
+  const layout = api.getTileLayout();
+  const panel = api.getPanelSize();
+  for (const tile of layout) {
+    expect(tile.top).toBeGreaterThanOrEqual(0);
+    expect(tile.left).toBeGreaterThanOrEqual(0);
+    expect(tile.top + tile.height).toBeLessThanOrEqual(panel.height);
+    expect(tile.left + tile.width).toBeLessThanOrEqual(panel.width);
+  }
+});
+
+test('every tile is square and the same size', () => {
+  const api = setupUi({ resetPuzzle: makeResetPuzzleMock(false), setUiRenderer: makeSetUiRendererMock() });
+  const layout = api.getTileLayout();
+  const first = layout[0];
+  for (const tile of layout) {
+    expect(tile.width).toBe(tile.height);
+    expect(tile.width).toBe(first.width);
+  }
+});
+
+test('clicking selects exactly one tile and clicking it again clears the selection', () => {
+  const api = setupUi({ resetPuzzle: makeResetPuzzleMock(false), setUiRenderer: makeSetUiRendererMock() });
+  expect(api.getSelectedIndex()).toBe(-1);
+  api.simulateClick(7);
+  expect(api.getSelectedIndex()).toBe(7);
+  api.simulateClick(7);
+  expect(api.getSelectedIndex()).toBe(-1);
+});
+
+test('clicking a second tile swaps and leaves nothing selected', () => {
+  const api = setupUi({
+    resetPuzzle: makeResetPuzzleMock(false),
+    setUiRenderer: makeSetUiRendererMock(),
+    onWin: makeOnWinSpy() as any
+  });
+  const before = api.getBoardImages();
+  api.simulateClick(4);
+  expect(api.getSelectedIndex()).toBe(4);
+  api.simulateClick(9);
+  expect(api.getSelectedIndex()).toBe(-1);
+  const after = api.getBoardImages();
+  expect(after[3]).toBe(before[8]);
+  expect(after[8]).toBe(before[3]);
+  expect(api.getMoveCount()).toBe(1);
+});
+
+test('a click while the preview is on selects nothing', () => {
+  const api = setupUi({ resetPuzzle: makeResetPuzzleMock(false), setUiRenderer: makeSetUiRendererMock() });
+  const before = api.getBoardImages();
+  api.togglePreview();
+  api.simulateClick(2);
+  expect(api.getSelectedIndex()).toBe(-1);
+  expect(api.getBoardImages()).toEqual(before);
+});
+
+test('shuffling clears any pending selection', () => {
+  const api = setupUi({ resetPuzzle: makeResetPuzzleMock(false), setUiRenderer: makeSetUiRendererMock() });
+  api.simulateClick(11);
+  expect(api.getSelectedIndex()).toBe(11);
+  api.simulateShuffle();
+  expect(api.getSelectedIndex()).toBe(-1);
+});
+
 test('setupUi move counter stays 0 after resetToOriginal', () => {
   const resetMock = makeResetPuzzleMock(false);
   const setUiMock = makeSetUiRendererMock();
