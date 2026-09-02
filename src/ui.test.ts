@@ -1,4 +1,5 @@
-import { setupUi } from './ui';
+import { test, expect, beforeEach, afterEach } from 'vitest';
+import { setupUi, __resetUiSessionForTests } from './ui';
 
 // Minimal mock types to track calls
 let calledReset = false;
@@ -31,7 +32,14 @@ function makeOnWinSpy() {
   return () => { calledOnWin = true };
 }
 
+// setupUi now keeps a module-level session, so each test must start from a
+// clean one or it would receive the previous test's injected dependencies.
+beforeEach(() => {
+  __resetUiSessionForTests();
+});
+
 afterEach(() => {
+  __resetUiSessionForTests();
   calledReset = false;
   calledSetUi = false;
   registeredRenderer = null;
@@ -101,6 +109,36 @@ test('setupUi move counter resets to 0 on simulateShuffle', () => {
   expect(api.getMoveCount()).toBe(1);
   api.simulateShuffle();
   expect(api.getMoveCount()).toBe(0);
+});
+
+test('a second setupUi call re-opens the panel without shuffling the board', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const setUiMock = makeSetUiRendererMock();
+  setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock });
+  expect(calledReset).toBe(true);
+
+  calledReset = false;
+  calledSetUi = false;
+  registeredRenderer = null;
+
+  // Clicking the machine again calls setupUi() a second time: it must only
+  // re-register the existing renderer, never re-run resetPuzzle.
+  setupUi();
+  expect(calledReset).toBe(false);
+  expect(calledSetUi).toBe(true);
+  expect(typeof registeredRenderer).toBe('function');
+});
+
+test('move count survives a second setupUi call', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const setUiMock = makeSetUiRendererMock();
+  const api = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock });
+  api.simulateSwap(0, 1);
+  expect(api.getMoveCount()).toBe(1);
+
+  const again = setupUi();
+  expect(again.getMoveCount()).toBe(1);
+  expect(again).toBe(api);
 });
 
 test('setupUi move counter stays 0 after resetToOriginal', () => {
