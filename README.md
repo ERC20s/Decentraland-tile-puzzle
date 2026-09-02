@@ -13,10 +13,12 @@ Requirements: Node.js >=16.0.0, npm >=6.0.0 (declared in package.json)
 
 Features
 
-- 5x5 image tile grid. src/ui.tsx builds a fixed grid (gridRows = 5, gridCols = 5, 25 tiles) from 25 numbered tile images.
+- Runtime image splitting. src/slicer.ts slices whichever picture is selected into rows x cols pieces by computing a uv window per cell (computeTileUvs) and handing every tile the same source image. No picture has to be cut into numbered files by hand: drop a png into the scene and add one line to PUZZLE_IMAGES in src/slicer.ts.
+- Selectable difficulty. The Difficulty buttons in src/ui.tsx switch between 3x3, 4x4 and 5x5 (DIFFICULTIES in src/slicer.ts). Tile size, tile positions and the win check are all derived from rows/cols, so adding another size is one line.
+- Selectable picture. The Picture buttons switch the source image (PUZZLE_IMAGES in src/slicer.ts: scene.png, models/grass/Floor_Grass01.png.png, images/image3x3.png). Changing difficulty or picture rebuilds the board and deals a fresh, never-already-solved shuffle.
 - Click-and-drag tile swapping. Click a tile to pick it up (DragThis highlights it), then click a second tile to drop it (DropThat) and the two tile images swap in place.
 - Shuffle / New Game button. The Shuffle button in the UI calls ShuffleBoard, which reshuffles the tile images and clears any in-progress drag so a fresh puzzle can be played without reloading the scene.
-- Win detection and reward. When every tile's image matches its original position (checkIfOriginalImages), the puzzle calls Reward() in src/reward.ts, which spawns a single reusable reward entity, plays a win song (music/champ2.mp3), and shows a grass model.
+- Win detection and reward. When every tile is back in its original position (checkIfOriginalImages, comparing face ids because a sliced board shares one image URL across all tiles), the puzzle calls Reward() in src/reward.ts, which spawns a single reusable reward entity, plays a win song (music/champ2.mp3), and shows a grass model.
 - Mute / replay toggle. Clicking the reward entity in-world calls toggleSound, which flips the win song between playing and paused, so players can silence it or play it again on demand.
 - Close / reopen panel. The X button hides the puzzle UI; the resulting "open" button brings it back.
 
@@ -24,20 +26,22 @@ Roadmap
 
 The following are proposed but not yet merged into this repository. They are tracked as open governance proposals in the Decentraland Tile Puzzle group and will be reflected here once code lands:
 
-- Dynamic image-splitting and multiple difficulty levels (proposal #3): automatically slice a chosen image into tiles and support grid sizes other than the current fixed 5x5.
 - In-scene chatbox (proposal #2): add a chat UI element to the puzzle scene.
 
 Project layout
 
 - src/index.ts: scene entry point.
-- src/ui.tsx: puzzle grid, drag-and-drop, and shuffle UI.
+- src/ui.tsx: puzzle grid, difficulty and picture selection, drag-and-drop, and shuffle UI.
+- src/slicer.ts: the difficulty and picture lists, the uv maths that slices a picture into a rows x cols grid, and the board layout (tile size and position per cell).
+- src/puzzle.ts: the board model (a tile "face" is a source image plus its uv window), shuffling, swapping and win detection.
 - src/reward.ts: win song and reward entity, including the mute/replay toggle.
 - scene.json: the SDK7 scene manifest (metadata, main entry point, permissions) that Decentraland reads to load the scene.
 - main.crdt: the compiled scene/entity state SDK7 generates from the composite, used at runtime.
 - assets/scene/main.composite: the composite entity layout authored in the Decentraland builder that produces main.crdt.
 - models/machine.glb: the 3D model used for the reward entity referenced in src/reward.ts.
 - models/grass/FloorBaseGrass_01.glb and models/grass/Floor_Grass01.png.png: the grass floor model and its texture, shown as part of the win reward.
-- images/: the 25 numbered tile images (image1x1.png through image5x5.png) that fill the 5x5 puzzle grid built in src/ui.tsx.
+- images/: the 25 numbered tile images (image1x1.png through image5x5.png) kept from the pre-slicing board; images/image3x3.png is still offered as the "Mosaic" picture, the rest are no longer referenced by src/ and can be pruned in a later change.
+- scene.png: the scene thumbnail, also offered as the "Scene" picture to slice.
 - music/: the win-song audio files (champ.mp3, champ2.mp3, champ3.mp3) played by the reward entity in src/reward.ts.
 - .dclignore: lists files excluded when the scene is deployed.
 

@@ -2,49 +2,31 @@ import { Color4 } from '@dcl/sdk/math';
 import ReactEcs, { Button, Label, ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs';
 import { UiCanvasInformation, Entity, InputAction, ColliderLayer, Animator, AudioSource, AvatarAttach, GltfContainer, Material, Transform, VideoPlayer, VisibilityComponent, engine, pointerEventsSystem } from '@dcl/sdk/ecs';
 import { Reward } from './reward';
-import { createBox, shuffleArray, checkIfOriginalImages, resetPuzzle, swapTiles, BoxInfo } from './puzzle';
+import { checkIfOriginalImages, resetPuzzle, swapTiles, tileKey, BoxInfo, TileFace } from './puzzle';
+import { DIFFICULTIES, PUZZLE_IMAGES, buildBoard, buildFaces, fillBoard, findDifficulty, findImage } from './slicer';
 
-
-const imageUrls = [
-  'images/image1x1.png',
-  'images/image2x1.png',
-  'images/image3x1.png',
-  'images/image4x1.png',
-  'images/image5x1.png',
-  'images/image1x2.png',
-  'images/image2x2.png',
-  'images/image3x2.png',
-  'images/image4x2.png',
-  'images/image5x2.png',
-  'images/image1x3.png',
-  'images/image2x3.png',
-  'images/image3x3.png',
-  'images/image4x3.png',
-  'images/image5x3.png',
-  'images/image1x4.png',
-  'images/image2x4.png',
-  'images/image3x4.png',
-  'images/image4x4.png',
-  'images/image5x4.png',
-  'images/image1x5.png',
-  'images/image2x5.png',
-  'images/image3x5.png',
-  'images/image4x5.png',
-  'images/image5x5.png'
-];
-
+// The board is built at runtime from a chosen picture and a chosen grid size:
+// every tile is the same source image shown through its own uv window (see
+// src/slicer.ts), so no picture has to be cut into numbered files by hand.
 const boxes: BoxInfo[] = [];
-const gridRows = 5;
-const gridCols = 5;
 
-for (let i = 0; i < gridRows; i++) {
-  for (let j = 0; j < gridCols; j++) {
-    const index = i * gridCols + j;
-    boxes.push(createBox(index + 1, 50 + i * 120, 100 + j * 120, imageUrls[index]));
-  }
+let currentDifficultyId = DIFFICULTIES[0].id;
+let currentImageId = PUZZLE_IMAGES[0].id;
+let faces: TileFace[] = [];
+// The solved order, as face ids. Recomputed whenever the board is rebuilt.
+let originalImages: string[] = [];
+
+// (Re)build the board for the current difficulty and picture, in solved order.
+// `boxes` is mutated in place so anything holding the array keeps working.
+function buildBoardState(): void {
+  const difficulty = findDifficulty(currentDifficultyId);
+  const image = findImage(currentImageId);
+  faces = buildFaces(image.src, difficulty.rows, difficulty.cols);
+  fillBoard(boxes, buildBoard(image.src, difficulty.rows, difficulty.cols));
+  originalImages = boxes.map((box) => tileKey(box));
 }
 
-const originalImages = boxes.map(box => box.box.image);
+buildBoardState();
 
 let highlight = {
   box: {
@@ -84,11 +66,11 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
   };
 
   // Perform the initial board assignment at runtime inside setupUi rather than
-  // at module load time. Use resetPuzzle with a copied imageUrls array so the
-  // canonical imageUrls order is preserved and errors are handled consistently
+  // at module load time. Use resetPuzzle with a copied faces array so the
+  // canonical solved order is preserved and errors are handled consistently
   // with ShuffleBoard.
   try {
-    runResetPuzzle(boxes, imageUrls.slice());
+    runResetPuzzle(boxes, faces.slice());
   } catch (e: any) {
     // Do not allow a resetPuzzle exception to bubble into the Decentraland runtime.
     console.warn('[ui] initial resetPuzzle failed', e);
@@ -135,7 +117,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
       // Reset restarts the puzzle the same way Shuffle does: it must never
       // leave the board solved, so it never calls checkIfOriginalImages /
       // runOnWin. It reuses the same runResetPuzzle path as ShuffleBoard.
-      runResetPuzzle(boxes, imageUrls.slice());
+      runResetPuzzle(boxes, faces.slice());
       resetHighlight();
       moveCount = 0;
       log = "Board reset. Click a tile to select it.";
@@ -149,7 +131,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
 
   const ShuffleBoard = () => {
     try {
-      runResetPuzzle(boxes, imageUrls.slice());
+      runResetPuzzle(boxes, faces.slice());
       resetHighlight();
       moveCount = 0;
       log = "Board shuffled. Click a tile to select it.";
@@ -161,6 +143,28 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
       log = `Shuffle failed: ${msg}`;
     }
   };
+
+  // Difficulty / picture selection. Both rebuild the board from the grid size
+  // and then deal it through the same runResetPuzzle path, so a fresh board is
+  // never handed to the player already solved.
+  const applySelection = (difficultyId: string, imageId: string, what: string) => {
+    currentDifficultyId = difficultyId;
+    currentImageId = imageId;
+    try {
+      buildBoardState();
+      runResetPuzzle(boxes, faces.slice());
+      log = `${what} — new board dealt. Click a tile to select it.`;
+    } catch (e: any) {
+      console.warn('[ui] applySelection failed', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      log = `New board failed: ${msg}`;
+    }
+    resetHighlight();
+    moveCount = 0;
+  };
+
+  const SelectDifficulty = (id: string) => applySelection(id, currentImageId, `Difficulty ${findDifficulty(id).label}`);
+  const SelectImage = (id: string) => applySelection(currentDifficultyId, id, `Picture ${findImage(id).label}`);
 
   const uiComponent = () => (
     <UiEntity
@@ -211,6 +215,50 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
         }}
         onMouseDown={() => ResetBoard()}
       />
+      <Label
+        value={"Difficulty"}
+        uiTransform={{
+          width: 'auto',
+          height: 'auto',
+          margin: { top: 34, left: 0 },
+          positionType: 'absolute',
+        }}
+      />
+      {DIFFICULTIES.map((difficulty, i) => (
+        <Button
+          key={`difficulty-${difficulty.id}`}
+          value={difficulty.id === currentDifficultyId ? `[${difficulty.label}]` : difficulty.label}
+          uiTransform={{
+            width: 70,
+            height: 25,
+            margin: { top: 34, left: 100 + i * 80 },
+            positionType: 'absolute',
+          }}
+          onMouseDown={() => SelectDifficulty(difficulty.id)}
+        />
+      ))}
+      <Label
+        value={"Picture"}
+        uiTransform={{
+          width: 'auto',
+          height: 'auto',
+          margin: { top: 66, left: 0 },
+          positionType: 'absolute',
+        }}
+      />
+      {PUZZLE_IMAGES.map((image, i) => (
+        <Button
+          key={`image-${image.id}`}
+          value={image.id === currentImageId ? `[${image.label}]` : image.label}
+          uiTransform={{
+            width: 100,
+            height: 25,
+            margin: { top: 66, left: 100 + i * 110 },
+            positionType: 'absolute',
+          }}
+          onMouseDown={() => SelectImage(image.id)}
+        />
+      ))}
       {boxes.map((box) => (
         <Button
           key={`box${box.box.index}`}
@@ -223,6 +271,8 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
           }}
           uiBackground={{
             textureMode: 'stretch',
+            // uvs is the runtime slice: the same picture, one window per tile.
+            uvs: box.box.uvs,
             texture: {
               src: box.box.image,
             },
@@ -236,7 +286,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
         uiTransform={{
           width: 'auto',
           height: 'auto',
-          margin: { top: 10, left: 110 },
+          margin: { top: 94, left: 0 },
           positionType: 'absolute',
         }}
       />
@@ -245,7 +295,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
         uiTransform={{
           width: 'auto',
           height: 'auto',
-          margin: { top: 35, left: 110 },
+          margin: { top: 94, left: 600 },
           positionType: 'absolute',
         }}
       />
@@ -286,10 +336,10 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     },
     resetToOriginal: () => {
       // Mirrors ResetBoard: restarts the puzzle via runResetPuzzle instead of
-      // restoring originalImages directly, so it can never trivially satisfy
+      // restoring the solved order directly, so it can never trivially satisfy
       // checkIfOriginalImages and fire runOnWin on its own.
       try {
-        runResetPuzzle(boxes, imageUrls.slice());
+        runResetPuzzle(boxes, faces.slice());
         moveCount = 0;
         return false;
       } catch (e: any) {
@@ -298,6 +348,12 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
       }
     },
     simulateShuffle: () => ShuffleBoard(),
-    getMoveCount: () => moveCount
+    getMoveCount: () => moveCount,
+    // Exposed so tests and future UI can drive difficulty / picture selection
+    // without going through a rendered button.
+    selectDifficulty: (id: string) => { SelectDifficulty(id); return boxes.length },
+    selectImage: (id: string) => { SelectImage(id); return boxes.length },
+    getDifficultyId: () => currentDifficultyId,
+    getImageId: () => currentImageId
   };
 }
