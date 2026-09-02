@@ -21,6 +21,7 @@ Features
 - Win detection and reward. When every tile's image matches its original position (checkIfOriginalImages), the puzzle calls Reward() in src/reward.ts, which spawns a single reusable reward entity, plays a win song (music/champ2.mp3), and shows a grass model.
 - Mute / replay toggle. Clicking the reward entity in-world calls toggleSound, which flips the win song between playing and paused, so players can silence it or play it again on demand.
 - Close / reopen panel. The X button hides the puzzle UI; the resulting "open" button brings it back.
+- Re-clicking the machine reopens the same board instead of reshuffling; use Shuffle to start a brand new puzzle.
 
 Roadmap
 

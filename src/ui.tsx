@@ -68,7 +68,24 @@ for (let i = 0; i < gridRows; i++) {
 
 const originalImages = boxes.map(box => box.box.image);
 
+// Module-local active session so repeated calls to setupUi reopen the same
+// UI and do not reshuffle the live board. The first call's injected deps win.
+let activeSession: any = null;
+
 export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer?: (renderer: any) => void; onWin?: () => void }) {
+  // If there is an active session already, reopen the same UI instead of
+  // re-running the full initialization. reopen() calls the first call's
+  // setUiRenderer so the renderer is registered again without touching the
+  // module-level board state (boxes, moveCount, dragIndex, showPreview).
+  if (activeSession) {
+    try {
+      if (typeof activeSession.reopen === 'function') activeSession.reopen();
+    } catch (e) {
+      console.warn('[ui] reopen failed', e);
+    }
+    return activeSession;
+  }
+
   // dependency fallbacks: use injected functions for tests or fall back to runtime implementations
   const runResetPuzzle = deps && deps.resetPuzzle ? deps.resetPuzzle : resetPuzzle;
   const runSetUiRenderer = deps && deps.setUiRenderer ? deps.setUiRenderer : ((renderer: any) => ReactEcsRenderer.setUiRenderer(renderer));
@@ -312,7 +329,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
 
   runSetUiRenderer(uiComponent);
 
-  return {
+  const api = {
     simulateSwap: (i: number, j: number) => {
       // Same rule as handleClick: the board cannot move while it is being
       // previewed, so a swap attempted during a peek is a no-op.
@@ -372,4 +389,20 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     // player's own scramble when it is off.
     getVisibleImages: () => (showPreview ? originalImages.slice() : boxes.map(box => box.box.image))
   };
+
+  // attach reopen that calls the original runSetUiRenderer from this session
+  (api as any).reopen = () => runSetUiRenderer(uiComponent);
+
+  // publish the active session so subsequent calls reopen instead of
+  // reinitialising the module-local state.
+  activeSession = api;
+
+  return api;
+}
+
+// Test-only helper: reset the setupUi session so tests can run deterministically
+// without needing to reload the module.
+// NOTE: exported only for tests; do not use from production code.
+export function __resetSetupUiForTests() {
+  activeSession = null;
 }
