@@ -131,5 +131,6 @@ run:
   {
     "// setup": "npm i once (Node >=16, npm >=6 per package.json)",
     "scene": { "cmd": "npm run start" },
+    "web": { "cmd": "npm run start", "port": 8000 },
     "test": "npm test"
   }
