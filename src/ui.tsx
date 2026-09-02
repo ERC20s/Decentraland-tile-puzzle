@@ -58,7 +58,33 @@ let highlight = {
   },
 };
 
-export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer?: (renderer: any) => void; onWin?: () => void }) {
+export type UiDeps = {
+  resetPuzzle?: typeof resetPuzzle;
+  setUiRenderer?: (renderer: any) => void;
+  onWin?: () => void;
+};
+
+export type UiSessionApi = {
+  simulateSwap: (i: number, j: number) => boolean;
+  resetToOriginal: () => boolean;
+  simulateShuffle: () => void;
+  getMoveCount: () => number;
+};
+
+type UiSession = {
+  api: UiSessionApi;
+  uiComponent: () => any;
+  setUiRenderer: (renderer: any) => void;
+};
+
+// The one live puzzle session. setupUi() is called on every pointer-down on
+// the machine entity (see src/index.ts), so it must not rebuild the board on
+// a second click: it re-registers the renderer of the session that already
+// exists and hands back the same api. Shuffle and Reset stay the deliberate
+// ways to restart the puzzle.
+let currentSession: UiSession | null = null;
+
+function createUiSession(deps?: UiDeps): UiSession {
   // dependency fallbacks: use injected functions for tests or fall back to runtime implementations
   const runResetPuzzle = deps && deps.resetPuzzle ? deps.resetPuzzle : resetPuzzle;
   const runSetUiRenderer = deps && deps.setUiRenderer ? deps.setUiRenderer : ((renderer: any) => ReactEcsRenderer.setUiRenderer(renderer));
@@ -274,7 +300,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
 
   runSetUiRenderer(uiComponent);
 
-  return {
+  const api: UiSessionApi = {
     simulateSwap: (i: number, j: number) => {
       swapTiles(boxes, i, j);
       moveCount++;
@@ -300,4 +326,27 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     simulateShuffle: () => ShuffleBoard(),
     getMoveCount: () => moveCount
   };
+
+  return { api, uiComponent, setUiRenderer: runSetUiRenderer };
+}
+
+// Entry point used by the scene. The first call builds the puzzle session and
+// registers its renderer; every later call only re-opens that same panel, so a
+// player who clicks the machine again keeps the board and the Moves counter.
+export function setupUi(deps?: UiDeps): UiSessionApi {
+  if (currentSession) {
+    currentSession.setUiRenderer(currentSession.uiComponent);
+    return currentSession.api;
+  }
+
+  currentSession = createUiSession(deps);
+  return currentSession.api;
+}
+
+// Test-only helper: drop the module-local session so each test can build a
+// fresh one with its own injected dependencies, mirroring
+// __resetRewardEntityForTests() in src/reward.ts.
+// NOTE: exported only for tests; do not use from production code.
+export function __resetUiSessionForTests() {
+  currentSession = null;
 }
