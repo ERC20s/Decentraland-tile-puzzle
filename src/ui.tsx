@@ -67,6 +67,11 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
   let dragIndex = -1;
   let log = "Click a tile to select it, then click another to swap.";
   let moveCount = 0;
+  // Preview: while true the board renders the SOLVED picture (originalImages)
+  // instead of the current scramble, and every board mutation is refused so
+  // peeking can never move a tile by accident. No new asset is needed — the
+  // solved order is already captured in originalImages at module load.
+  let showPreview = false;
 
   const resetHighlight = () => {
     highlight = {
@@ -99,6 +104,14 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
   // Single deterministic click handler: first click selects, same click deselects,
   // different click swaps immediately and checks for win.
   const handleClick = (boxData: BoxInfo, index: number) => {
+    // While the preview is on the board is showing the finished picture, not
+    // the player's board: refuse the click outright instead of swapping the
+    // tile that happens to sit under the cursor.
+    if (showPreview) {
+      log = "Preview: this is the finished picture. Click Preview again to return.";
+      return;
+    }
+
     if (dragIndex === -1) {
       // select
       highlight.box.height = boxData.box.height + 10;
@@ -130,7 +143,25 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     resetHighlight();
   };
 
+  // The one place the preview is switched. Turning it on drops any half-made
+  // selection so the highlight does not survive the peek; turning it off puts
+  // the player back on exactly the board they left, move count untouched.
+  const TogglePreview = () => {
+    showPreview = !showPreview;
+    if (showPreview) {
+      resetHighlight();
+      log = "Preview: this is the finished picture. Click Preview again to return.";
+    } else {
+      log = "Back to your board. Click a tile to select it.";
+    }
+    return showPreview;
+  };
+
   const ResetBoard = () => {
+    if (showPreview) {
+      log = "Preview is on. Click Preview again before resetting.";
+      return;
+    }
     try {
       // Reset restarts the puzzle the same way Shuffle does: it must never
       // leave the board solved, so it never calls checkIfOriginalImages /
@@ -148,6 +179,10 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
   };
 
   const ShuffleBoard = () => {
+    if (showPreview) {
+      log = "Preview is on. Click Preview again before shuffling.";
+      return;
+    }
     try {
       runResetPuzzle(boxes, imageUrls.slice());
       resetHighlight();
@@ -211,7 +246,17 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
         }}
         onMouseDown={() => ResetBoard()}
       />
-      {boxes.map((box) => (
+      <Button
+        key={"preview"}
+        value={showPreview ? "Hide" : "Preview"}
+        uiTransform={{
+          width: 90,
+          height: 25,
+          margin: { top: 0, left: 200 },
+        }}
+        onMouseDown={() => TogglePreview()}
+      />
+      {boxes.map((box, i) => (
         <Button
           key={`box${box.box.index}`}
           value={box.box.text?.toString()}
@@ -224,7 +269,9 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
           uiBackground={{
             textureMode: 'stretch',
             texture: {
-              src: box.box.image,
+              // Preview on: this slot shows the tile that BELONGS here in the
+              // solved picture. Preview off: the tile actually sitting here.
+              src: showPreview ? originalImages[i] : box.box.image,
             },
             color: Color4.White(),
           }}
@@ -276,6 +323,9 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
 
   return {
     simulateSwap: (i: number, j: number) => {
+      // Same rule as handleClick: the board cannot move while it is being
+      // previewed, so a swap attempted during a peek is a no-op.
+      if (showPreview) return false;
       swapTiles(boxes, i, j);
       moveCount++;
       if (checkIfOriginalImages(boxes, originalImages)) {
@@ -288,6 +338,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
       // Mirrors ResetBoard: restarts the puzzle via runResetPuzzle instead of
       // restoring originalImages directly, so it can never trivially satisfy
       // checkIfOriginalImages and fire runOnWin on its own.
+      if (showPreview) return false;
       try {
         runResetPuzzle(boxes, imageUrls.slice());
         moveCount = 0;
@@ -298,6 +349,17 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
       }
     },
     simulateShuffle: () => ShuffleBoard(),
-    getMoveCount: () => moveCount
+    getMoveCount: () => moveCount,
+    // Preview surface, so the behaviour is testable without the SDK renderer.
+    togglePreview: () => TogglePreview(),
+    isPreviewOn: () => showPreview,
+    // What the board is holding right now (never the preview): lets a test
+    // assert that a peek left the scramble untouched.
+    getBoardImages: () => boxes.map(box => box.box.image),
+    // The finished picture, in slot order — what the preview draws.
+    getSolvedImages: () => originalImages.slice(),
+    // What the board would show right now: the preview when it is on, the
+    // player's own scramble when it is off.
+    getVisibleImages: () => (showPreview ? originalImages.slice() : boxes.map(box => box.box.image))
   };
 }
