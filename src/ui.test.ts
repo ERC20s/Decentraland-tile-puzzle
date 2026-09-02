@@ -103,6 +103,83 @@ test('setupUi move counter resets to 0 on simulateShuffle', () => {
   expect(api.getMoveCount()).toBe(0);
 });
 
+test('setupUi preview starts off and toggles on and off', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const setUiMock = makeSetUiRendererMock();
+  const api = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock });
+  expect(api.isPreviewOn()).toBe(false);
+  api.togglePreview();
+  expect(api.isPreviewOn()).toBe(true);
+  api.togglePreview();
+  expect(api.isPreviewOn()).toBe(false);
+});
+
+test('setupUi preview shows the solved picture and hiding it shows the board again', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const setUiMock = makeSetUiRendererMock();
+  const api = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock });
+  const board = api.getBoardImages();
+  // preview off: the slots draw the player's own board
+  expect(api.getVisibleImages()).toEqual(board);
+  api.togglePreview();
+  // preview on: every slot draws the tile that belongs there
+  expect(api.getVisibleImages()).toEqual(api.getSolvedImages());
+  // the underlying board is untouched by looking at it
+  expect(api.getBoardImages()).toEqual(board);
+  api.togglePreview();
+  expect(api.getVisibleImages()).toEqual(board);
+});
+
+test('setupUi swap attempted while preview is on changes nothing', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const setUiMock = makeSetUiRendererMock();
+  const onWinSpy = makeOnWinSpy();
+  const api = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock, onWin: onWinSpy as any });
+  const before = api.getBoardImages();
+  const movesBefore = api.getMoveCount();
+  api.togglePreview();
+  // the mock leaves the board one swap from solved: this swap would win if it
+  // were allowed to happen at all.
+  const result = api.simulateSwap(1, 2);
+  expect(result).toBe(false);
+  expect(api.getBoardImages()).toEqual(before);
+  expect(api.getMoveCount()).toBe(movesBefore);
+  expect(calledOnWin).toBe(false);
+});
+
+test('setupUi toggling preview back restores the shuffled board and the move count', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const setUiMock = makeSetUiRendererMock();
+  const onWinSpy = makeOnWinSpy();
+  const api = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock, onWin: onWinSpy as any });
+  api.simulateSwap(3, 4);
+  const before = api.getBoardImages();
+  const moves = api.getMoveCount();
+  api.togglePreview();
+  api.togglePreview();
+  expect(api.isPreviewOn()).toBe(false);
+  expect(api.getBoardImages()).toEqual(before);
+  expect(api.getMoveCount()).toBe(moves);
+});
+
+test('setupUi shuffle and reset are refused while the preview is on', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const setUiMock = makeSetUiRendererMock();
+  const onWinSpy = makeOnWinSpy();
+  const api = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock, onWin: onWinSpy as any });
+  api.simulateSwap(3, 4);
+  const before = api.getBoardImages();
+  api.togglePreview();
+  calledReset = false;
+  api.simulateShuffle();
+  api.resetToOriginal();
+  expect(calledReset).toBe(false);
+  expect(api.getBoardImages()).toEqual(before);
+  api.togglePreview();
+  api.simulateShuffle();
+  expect(calledReset).toBe(true);
+});
+
 test('setupUi move counter stays 0 after resetToOriginal', () => {
   const resetMock = makeResetPuzzleMock(false);
   const setUiMock = makeSetUiRendererMock();
