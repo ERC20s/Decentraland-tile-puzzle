@@ -7,6 +7,7 @@ let gltfCreateCalls: any[] = []
 let transformCreateCalls: any[] = []
 let lastPointerOpts: any = null
 let lastPointerHandler: (() => void) | null = null
+let lastPointerUnregisterCalled = false
 let setupUiCalled = false
 
 // Mock the '@dcl/sdk/ecs' module before importing the module-under-test
@@ -29,8 +30,8 @@ vi.mock('@dcl/sdk/ecs', () => {
       onPointerDown: vi.fn((opts: any, handler: () => void) => {
         lastPointerOpts = opts
         lastPointerHandler = handler
-        // return an unregister function
-        return () => {}
+        // return an unregister function that sets a flag so tests can detect it was called
+        return () => { lastPointerUnregisterCalled = true }
       })
     },
     // Small shims used by src/index.ts
@@ -47,7 +48,7 @@ vi.mock('./ui', () => {
 })
 
 // Import the module under test after mocks are in place
-import { main } from './index'
+import { main, __resetMainForTests } from './index'
 
 beforeEach(() => {
   createdEntities = []
@@ -56,6 +57,7 @@ beforeEach(() => {
   transformCreateCalls = []
   lastPointerOpts = null
   lastPointerHandler = null
+  lastPointerUnregisterCalled = false
   setupUiCalled = false
 })
 
@@ -95,5 +97,28 @@ describe('scene entry (src/index.ts)', () => {
     expect(setupUiCalled).toBe(false)
     if (lastPointerHandler) lastPointerHandler()
     expect(setupUiCalled).toBe(true)
+  })
+
+  it('calls the previous unregister when main is invoked a second time', async () => {
+    // First registration
+    await main()
+    expect(lastPointerUnregisterCalled).toBe(false)
+
+    // Second run should call the previous unregister function
+    await main()
+    expect(lastPointerUnregisterCalled).toBe(true)
+  })
+
+  it('reset helper calls unregister and clears stored state', async () => {
+    await main()
+    expect(lastPointerUnregisterCalled).toBe(false)
+
+    // Call the exported test helper which should invoke the stored unregister
+    __resetMainForTests()
+    expect(lastPointerUnregisterCalled).toBe(true)
+
+    // Running main again should work and register a new handler (no throw)
+    await main()
+    expect(lastPointerOpts).not.toBeNull()
   })
 })
