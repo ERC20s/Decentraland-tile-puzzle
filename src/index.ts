@@ -18,7 +18,9 @@ initAssetPacks(engine, pointerEventsSystem, {
   VideoPlayer
 })
 
-
+// Module-local storage for the machine pointer unregister function so we
+// can avoid duplicate registrations or explicitly unregister during tests.
+let machinePointerUnregister: (() => void) | null = null
 
 export async function main() {
   const grass = engine.addEntity();
@@ -44,12 +46,41 @@ export async function main() {
     rotation: normalizeQuaternionOrIdentity({ x: 0, y: Math.sin(3 * Math.PI / 4), z: 0, w: Math.cos(3 * Math.PI / 4) })
   });
 
-  pointerEventsSystem.onPointerDown(
+  // If we already have an unregister function, call it to avoid stacking handlers
+  if (typeof machinePointerUnregister === 'function') {
+    try {
+      machinePointerUnregister()
+    } catch (e) {
+      console.warn('[main] Error while calling previous machine pointer unregister:', e)
+    }
+    machinePointerUnregister = null
+  }
+
+  const unregister = pointerEventsSystem.onPointerDown(
     {
       entity: machine,
       opts: { button: InputAction.IA_POINTER, hoverText: 'Enter the Machine', maxDistance: 100,  },
     },
     () => { setupUi();}
-  );
+  )
 
+  // Store the returned cleanup function if the runtime provides one.
+  if (typeof unregister === 'function') {
+    machinePointerUnregister = unregister
+  } else {
+    machinePointerUnregister = null
+  }
+}
+
+// Test-only helper: unregister the machine pointer handler and clear its storage
+// NOTE: exported only for tests; do not use from production code.
+export function __resetMainForTests() {
+  if (typeof machinePointerUnregister === 'function') {
+    try {
+      machinePointerUnregister()
+    } catch (e) {
+      console.warn('[main] Error while calling machinePointerUnregister in reset helper:', e)
+    }
+  }
+  machinePointerUnregister = null
 }

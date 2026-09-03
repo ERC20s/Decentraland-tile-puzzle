@@ -9,6 +9,10 @@ import { normalizeQuaternionOrIdentity } from './quat'
 // old pointer handlers registered.
 let rewardEntity: Entity | null = null
 
+// Module-local storage for the reward pointer unregister function so we can
+// avoid duplicate registrations and also allow tests to clean it up.
+let rewardPointerUnregister: (() => void) | null = null
+
 export function Reward() {
   if (rewardEntity !== null) {
     // Guard access to the AudioSource component so a missing or invalid
@@ -43,13 +47,30 @@ export function Reward() {
     rotation: normalizeQuaternionOrIdentity({ x: 0, y: 0, z: 0, w: 1 }) // w should be 1 for a valid quaternion
   })
 
-  pointerEventsSystem.onPointerDown(
+  // If we already have an unregister function, call it to avoid stacking handlers
+  if (typeof rewardPointerUnregister === 'function') {
+    try {
+      rewardPointerUnregister()
+    } catch (e) {
+      console.warn('[reward] Error while calling previous reward pointer unregister:', e)
+    }
+    rewardPointerUnregister = null
+  }
+
+  const unregister = pointerEventsSystem.onPointerDown(
     {
       entity: reward,
       opts: { button: InputAction.IA_POINTER, hoverText: 'Play song again!', maxDistance: 100 },
     },
     () => { toggleSound(reward) }
   )
+
+  // Store the returned cleanup function if the runtime provides one.
+  if (typeof unregister === 'function') {
+    rewardPointerUnregister = unregister
+  } else {
+    rewardPointerUnregister = null
+  }
 
   rewardEntity = reward
 }
@@ -79,5 +100,14 @@ export function toggleSound(entity: Entity) {
 // deterministically without needing to reload the module.
 // NOTE: exported only for tests; do not use from production code.
 export function __resetRewardEntityForTests() {
+  // Unregister any pointer handler created for the reward and clear state.
+  if (typeof rewardPointerUnregister === 'function') {
+    try {
+      rewardPointerUnregister()
+    } catch (e) {
+      console.warn('[reward] Error while calling rewardPointerUnregister in reset helper:', e)
+    }
+  }
+  rewardPointerUnregister = null
   rewardEntity = null
 }
