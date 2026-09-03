@@ -6,6 +6,7 @@ let createdEntities: number[] = []
 let nextEntityId = 1
 let lastCreateArgs: any = null
 let fakeGetMutable: (entity: any) => any = () => ({ playing: true })
+let lastRewardPointerUnregisterCalled = false
 
 // Mock the '@dcl/sdk/ecs' module before importing the reward module so that
 // reward.ts receives our fakes for engine, AudioSource, pointerEventsSystem, etc.
@@ -24,8 +25,8 @@ vi.mock('@dcl/sdk/ecs', () => {
     },
     pointerEventsSystem: {
       onPointerDown: vi.fn((_opts: any, _handler: () => void) => {
-        // return a fake unregister function
-        return () => {}
+        // return a fake unregister function that sets a flag so tests can observe it
+        return () => { lastRewardPointerUnregisterCalled = true }
       })
     },
     // Small shims for other imports used by reward.ts
@@ -45,6 +46,7 @@ beforeEach(() => {
   nextEntityId = 1
   lastCreateArgs = null
   fakeGetMutable = () => ({ playing: true })
+  lastRewardPointerUnregisterCalled = false
 
   // Ensure module-local rewardEntity is cleared between tests
   RewardModule.__resetRewardEntityForTests()
@@ -106,5 +108,30 @@ describe('Reward', () => {
 
     // Call the exported toggleSound directly; it should not throw
     expect(() => RewardModule.toggleSound(createdEntities[0])).not.toThrow()
+  })
+
+  it('reset helper calls unregister and tolerates throwing unregisters', () => {
+    // First call creates reward and installs a pointer handler
+    RewardModule.Reward()
+    expect(lastRewardPointerUnregisterCalled).toBe(false)
+
+    // Call reset helper which should call the stored unregister
+    RewardModule.__resetRewardEntityForTests()
+    expect(lastRewardPointerUnregisterCalled).toBe(true)
+
+    // Now test that if unregister throws, the reset helper does not throw
+    // Re-establish reward pointer unregister that throws when called
+    // To do this we mock the pointerEventsSystem.onPointerDown to return a throwing function
+
+    // Replace the mock to return a throwing unregister
+    ;(ecs as any).pointerEventsSystem.onPointerDown = vi.fn((_opts: any, _handler: () => void) => {
+      return () => { throw new Error('boom') }
+    })
+
+    // Create reward again which will store the throwing unregister
+    RewardModule.Reward()
+
+    // Now calling reset should not throw even though the unregister throws
+    expect(() => RewardModule.__resetRewardEntityForTests()).not.toThrow()
   })
 })
