@@ -26,6 +26,42 @@ function repoPath(rel: string): string {
   return path.join(__dirname, '..', rel)
 }
 
+// Asset paths the scene loads are plain string literals in the source
+// ('images/image1x1.png' in src/ui.tsx, 'music/champ2.mp3' in src/reward.ts,
+// 'models/machine.glb' in src/index.ts). Scanning for them keeps the checklist
+// above honest: a tile image or a sound added to the code later is checked on
+// the same terms, without anyone remembering to edit this file.
+const ASSET_LITERAL = /['"`]((?:images|music|models|assets)\/[A-Za-z0-9_\-./]+\.(?:png|mp3|glb|composite))['"`]/g
+
+function sourceFiles(): string[] {
+  const dir = __dirname
+  return fs
+    .readdirSync(dir)
+    .filter((name) => /\.tsx?$/.test(name))
+    .filter((name) => !/\.test\.tsx?$/.test(name)) // tests restate the same paths
+    .map((name) => path.join(dir, name))
+}
+
+function referencedAssets(): Map<string, string[]> {
+  const found = new Map<string, string[]>()
+  for (const full of sourceFiles()) {
+    const text = fs.readFileSync(full, 'utf8')
+    ASSET_LITERAL.lastIndex = 0
+    let match: RegExpExecArray | null
+    while ((match = ASSET_LITERAL.exec(text)) !== null) {
+      const rel = match[1]
+      const where = path.basename(full)
+      const seen = found.get(rel)
+      if (seen) {
+        if (!seen.includes(where)) seen.push(where)
+      } else {
+        found.set(rel, [where])
+      }
+    }
+  }
+  return found
+}
+
 // A byte that could plausibly start a line of text. Every binary asset format we
 // ship (PNG, MP3, GLB) has a non-text byte inside its first eight, so a stub that
 // was saved as a text file with a binary extension is caught here.
@@ -98,5 +134,46 @@ describe('referenced local asset files should exist in the repository', () => {
       }
     }
     report('Tile images that are not valid PNG files', problems)
+  })
+})
+
+describe('every asset path written in the scene source should be a real file', () => {
+  it('finds the asset literals in src/*.ts(x) so the scan itself cannot pass silently', () => {
+    const found = referencedAssets()
+    const problems: string[] = []
+    if (found.size === 0) {
+      problems.push('no asset path literals were found in src/ — the scan is broken, not the assets')
+    }
+    for (const rel of TILE_IMAGES) {
+      if (!found.has(rel)) problems.push(`${rel} is on the checklist but no longer referenced from src/`)
+    }
+    if (!found.has('music/champ2.mp3')) {
+      problems.push('music/champ2.mp3 is on the checklist but no longer referenced from src/')
+    }
+    report('Checklist entries that drifted away from the source', problems)
+  })
+
+  it('checks that each referenced path exists and holds real bytes', () => {
+    const problems: string[] = []
+    for (const [rel, files] of referencedAssets()) {
+      const where = files.join(', ')
+      const full = repoPath(rel)
+      if (!fs.existsSync(full)) {
+        problems.push(`${rel} (referenced by ${where}) is missing from the repository`)
+        continue
+      }
+      if (fs.statSync(full).size === 0) {
+        problems.push(`${rel} (referenced by ${where}) is empty (0 bytes)`)
+        continue
+      }
+      if (rel.endsWith('.composite')) continue // the composite is JSON on purpose
+      if (looksLikeText(readHead(full, 8))) {
+        problems.push(`${rel} (referenced by ${where}) starts with plain text — placeholder, not a binary asset`)
+      }
+      if (rel.endsWith('.png') && !readHead(full, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
+        problems.push(`${rel} (referenced by ${where}) does not start with the PNG signature`)
+      }
+    }
+    report('Assets referenced from src/ that are missing or placeholder stubs', problems)
   })
 })
