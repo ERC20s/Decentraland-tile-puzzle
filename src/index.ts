@@ -61,7 +61,16 @@ export async function main() {
       entity: machine,
       opts: { button: InputAction.IA_POINTER, hoverText: 'Enter the Machine', maxDistance: 100,  },
     },
-    () => { setupUi();}
+    () => {
+      // setupUi() builds the UI tree; if it throws we must not let the
+      // exception escape into the pointer-event callback stack, where it can
+      // disrupt the rest of the scene. Log it and keep the scene running.
+      try {
+        setupUi()
+      } catch (e) {
+        console.warn('[main] setupUi() threw while handling machine pointer down:', e)
+      }
+    }
   )
 
   // Store the returned cleanup function if the runtime provides one.

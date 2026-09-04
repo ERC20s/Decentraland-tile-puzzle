@@ -49,6 +49,8 @@ vi.mock('./ui', () => {
 
 // Import the module under test after mocks are in place
 import { main, __resetMainForTests } from './index'
+// The mocked setupUi, so tests can change its behaviour per-case
+import { setupUi } from './ui'
 
 beforeEach(() => {
   createdEntities = []
@@ -95,6 +97,34 @@ describe('scene entry (src/index.ts)', () => {
 
     // invoking the registered handler should call the mocked setupUi
     expect(setupUiCalled).toBe(false)
+    if (lastPointerHandler) lastPointerHandler()
+    expect(setupUiCalled).toBe(true)
+  })
+
+  it('does not rethrow when setupUi throws, and warns instead', async () => {
+    await main()
+    expect(lastPointerHandler).not.toBeNull()
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => { })
+    const boom = new Error('setupUi exploded')
+    ;(setupUi as any).mockImplementationOnce(() => { setupUiCalled = true; throw boom })
+
+    try {
+      // Invoking the handler must be safe even though setupUi throws
+      expect(() => { if (lastPointerHandler) lastPointerHandler() }).not.toThrow()
+      // setupUi was still attempted
+      expect(setupUiCalled).toBe(true)
+      expect(setupUi).toHaveBeenCalled()
+      // and the failure was reported rather than swallowed silently
+      expect(warn).toHaveBeenCalled()
+      const warned = warn.mock.calls.some((call: any[]) => call.includes(boom))
+      expect(warned).toBe(true)
+    } finally {
+      warn.mockRestore()
+    }
+
+    // A later, healthy invocation still works normally
+    setupUiCalled = false
     if (lastPointerHandler) lastPointerHandler()
     expect(setupUiCalled).toBe(true)
   })
