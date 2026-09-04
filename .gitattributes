@@ -1,2 +1,9 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Scene assets are binary: never let text=auto rewrite line endings inside them,
+# which would corrupt the files on checkout (src/assets.test.ts checks their bytes).
+*.png binary
+*.mp3 binary
+*.glb binary
+*.crdt binary
