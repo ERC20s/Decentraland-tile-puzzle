@@ -9,6 +9,8 @@ let lastPointerOpts: any = null
 let lastPointerHandler: (() => void) | null = null
 let lastPointerUnregisterCalled = false
 let setupUiCalled = false
+// Written by the mocks in the order src/index.ts calls them
+let callOrder: string[] = []
 
 // Mock the '@dcl/sdk/ecs' module before importing the module-under-test
 vi.mock('@dcl/sdk/ecs', () => {
@@ -17,6 +19,7 @@ vi.mock('@dcl/sdk/ecs', () => {
       addEntity: vi.fn(() => {
         const id = nextEntityId++
         createdEntities.push(id)
+        callOrder.push('addEntity')
         return id
       })
     },
@@ -36,7 +39,25 @@ vi.mock('@dcl/sdk/ecs', () => {
     },
     // Small shims used by src/index.ts
     InputAction: { IA_POINTER: 0 },
-    ColliderLayer: { CL_POINTER: 1 }
+    ColliderLayer: { CL_POINTER: 1 },
+    // Component handles src/index.ts hands to initAssetPacks. They are only
+    // passed through, never called, so empty objects are enough — but they must
+    // exist on the mock or accessing them throws "No export is defined".
+    Animator: {},
+    AudioSource: {},
+    AvatarAttach: {},
+    VisibilityComponent: {},
+    Material: {},
+    VideoPlayer: {},
+    UiCanvasInformation: {}
+  }
+})
+
+// Mock the asset-pack entrypoint: main() now calls initAssetPacks itself, and
+// the real module expects the Decentraland client runtime.
+vi.mock('@dcl/asset-packs/dist/scene-entrypoint', () => {
+  return {
+    initAssetPacks: vi.fn(() => { callOrder.push('initAssetPacks') })
   }
 })
 
@@ -51,6 +72,8 @@ vi.mock('./ui', () => {
 import { main, __resetMainForTests } from './index'
 // The mocked setupUi, so tests can change its behaviour per-case
 import { setupUi } from './ui'
+// The mocked asset-pack entrypoint, so tests can count how often it ran
+import { initAssetPacks } from '@dcl/asset-packs/dist/scene-entrypoint'
 
 beforeEach(() => {
   // main() now keeps its grass and machine between calls, so each test must
@@ -65,9 +88,33 @@ beforeEach(() => {
   lastPointerHandler = null
   lastPointerUnregisterCalled = false
   setupUiCalled = false
+  callOrder = []
+  ;(initAssetPacks as any).mockClear()
 })
 
 describe('scene entry (src/index.ts)', () => {
+  it('does not initialise the asset packs until main() runs, and then only once', async () => {
+    // Importing the module must have no side effect: the reset helper in
+    // beforeEach cleared the flag and the call count, so nothing has run yet.
+    expect(initAssetPacks).not.toHaveBeenCalled()
+
+    await main()
+    expect(initAssetPacks).toHaveBeenCalledTimes(1)
+
+    // A second main() reuses the initialised packs, exactly as it reuses the
+    // grass and the machine.
+    await main()
+    expect(initAssetPacks).toHaveBeenCalledTimes(1)
+  })
+
+  it('initialises the asset packs before creating any entity', async () => {
+    await main()
+    // callOrder is written by the mocks themselves, so this is the real order
+    // in which src/index.ts called them.
+    expect(callOrder[0]).toBe('initAssetPacks')
+    expect(callOrder).toContain('addEntity')
+  })
+
   it('creates grass and machine gltf containers with expected src values', async () => {
     await main()
     expect(gltfCreateCalls.length).toBe(2)
