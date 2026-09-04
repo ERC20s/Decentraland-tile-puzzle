@@ -53,6 +53,10 @@ import { main, __resetMainForTests } from './index'
 import { setupUi } from './ui'
 
 beforeEach(() => {
+  // main() now keeps its grass and machine between calls, so each test must
+  // start from a cleared module state or it would see zero creations.
+  __resetMainForTests()
+
   createdEntities = []
   nextEntityId = 1
   gltfCreateCalls = []
@@ -137,6 +141,38 @@ describe('scene entry (src/index.ts)', () => {
     // Second run should call the previous unregister function
     await main()
     expect(lastPointerUnregisterCalled).toBe(true)
+  })
+
+  it('does not create a second grass or machine when main is invoked twice', async () => {
+    await main()
+    expect(createdEntities.length).toBe(2)
+    const [grass, machine] = createdEntities
+
+    await main()
+
+    // No extra entities, and no extra components stacked on the scene
+    expect(createdEntities.length).toBe(2)
+    expect(createdEntities).toEqual([grass, machine])
+    expect(gltfCreateCalls.length).toBe(2)
+    expect(transformCreateCalls.length).toBe(2)
+
+    // The pointer handler is re-registered on the machine that already exists
+    expect(lastPointerOpts).not.toBeNull()
+    expect(lastPointerOpts.entity).toBe(createdEntities[1])
+  })
+
+  it('rebuilds grass and machine after the reset helper clears them', async () => {
+    await main()
+    expect(createdEntities.length).toBe(2)
+
+    __resetMainForTests()
+    await main()
+
+    // A cleared state means a fresh pair — four entities in total for this test
+    expect(createdEntities.length).toBe(4)
+    expect(gltfCreateCalls.length).toBe(4)
+    expect(transformCreateCalls.length).toBe(4)
+    expect(lastPointerOpts.entity).toBe(createdEntities[3])
   })
 
   it('reset helper calls unregister and clears stored state', async () => {
