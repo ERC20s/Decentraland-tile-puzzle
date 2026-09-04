@@ -1,3 +1,4 @@
+import { afterEach, test, expect } from 'vitest';
 import { setupUi, __resetSetupUiForTests } from './ui';
 
 // Minimal mock types to track calls

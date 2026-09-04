@@ -3,20 +3,30 @@ import { } from '@dcl/sdk/math'
 import { UiCanvasInformation, Entity, InputAction, ColliderLayer, Animator, AudioSource, AvatarAttach, GltfContainer, Material, Transform, VideoPlayer, VisibilityComponent, engine, pointerEventsSystem } from '@dcl/sdk/ecs'
 import { initAssetPacks } from '@dcl/asset-packs/dist/scene-entrypoint'
 import { setupUi } from './ui'
-import { openExternalUrl, movePlayerTo } from '~system/RestrictedActions'
 import { Reward } from './reward'
 import { normalizeQuaternionOrIdentity } from './quat'
 
-initAssetPacks(engine, pointerEventsSystem, {
-  Animator,
-  AudioSource,
-  AvatarAttach,
-  Transform,
-  VisibilityComponent,
-  GltfContainer,
-  Material,
-  VideoPlayer
-})
+// Asset-pack initialisation used to run at module scope, so merely IMPORTING
+// this file (a test runner, a type check, any tool outside the Decentraland
+// client) ran it as a side effect. It now runs as the first statement of
+// main(), before any entity work, and only once — the same shape #200/#201
+// gave the grass and machine entities.
+let assetPacksInitialised = false
+
+function initAssetPacksOnce() {
+  if (assetPacksInitialised) return
+  assetPacksInitialised = true
+  initAssetPacks(engine, pointerEventsSystem, {
+    Animator,
+    AudioSource,
+    AvatarAttach,
+    Transform,
+    VisibilityComponent,
+    GltfContainer,
+    Material,
+    VideoPlayer
+  })
+}
 
 // Module-local storage for the machine pointer unregister function so we
 // can avoid duplicate registrations or explicitly unregister during tests.
@@ -32,6 +42,9 @@ let grassEntity: Entity | null = null
 let machineEntity: Entity | null = null
 
 export async function main() {
+  // First statement: the asset packs must be ready before any entity work.
+  initAssetPacksOnce()
+
   if (grassEntity === null) {
     const grass = engine.addEntity();
     GltfContainer.create(grass, {
@@ -116,4 +129,5 @@ export function __resetMainForTests() {
   machinePointerUnregister = null
   grassEntity = null
   machineEntity = null
+  assetPacksInitialised = false
 }
