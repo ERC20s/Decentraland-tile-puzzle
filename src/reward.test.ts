@@ -7,6 +7,9 @@ let nextEntityId = 1
 let lastCreateArgs: any = null
 let fakeGetMutable: (entity: any) => any = () => ({ playing: true })
 let lastRewardPointerUnregisterCalled = false
+// Systems the module handed to the fake engine, and the ones it took back.
+let addedSystems: Array<(dt: number) => void> = []
+let removedSystems: Array<(dt: number) => void> = []
 
 // Mock the '@dcl/sdk/ecs' module before importing the reward module so that
 // reward.ts receives our fakes for engine, AudioSource, pointerEventsSystem, etc.
@@ -17,7 +20,11 @@ vi.mock('@dcl/sdk/ecs', () => {
         const id = nextEntityId++
         createdEntities.push(id)
         return id
-      })
+      }),
+      // The one-shot restart of the win song is scheduled through these; the
+      // tests keep the callback so they can run it as a frame would.
+      addSystem: vi.fn((system: any) => { addedSystems.push(system) }),
+      removeSystem: vi.fn((system: any) => { removedSystems.push(system) })
     },
     AudioSource: {
       create: vi.fn((entity: any, opts: any) => { lastCreateArgs = { entity, opts } }),
@@ -48,8 +55,21 @@ beforeEach(() => {
   fakeGetMutable = () => ({ playing: true })
   lastRewardPointerUnregisterCalled = false
 
+  // Restore the engine and pointer fakes: individual tests replace them to
+  // exercise the fallback paths.
+  ;(ecs as any).engine.addSystem = (system: any) => { addedSystems.push(system) }
+  ;(ecs as any).engine.removeSystem = (system: any) => { removedSystems.push(system) }
+  ;(ecs as any).pointerEventsSystem.onPointerDown = vi.fn((_opts: any, _handler: () => void) => {
+    return () => { lastRewardPointerUnregisterCalled = true }
+  })
+
   // Ensure module-local rewardEntity is cleared between tests
   RewardModule.__resetRewardEntityForTests()
+
+  // Cleared last: the reset above may hand a leftover system back to the engine.
+  addedSystems = []
+  removedSystems = []
+  lastRewardPointerUnregisterCalled = false
 })
 
 describe('Reward', () => {
@@ -85,18 +105,87 @@ describe('Reward', () => {
     expect(norm2).toBeCloseTo(1, 6)
   })
 
-  it('reuses reward entity and sets AudioSource.getMutable().playing = true on subsequent calls', () => {
-    // First call creates it
+  it('restarts the win song on a later win: playing goes false now, true on the next frame', () => {
+    // First call creates it, with playing: true already on the component.
     RewardModule.Reward()
 
-    // Prepare a shared audio object so we can observe mutation
-    const sharedAudio: any = { playing: false }
+    // The clip has finished but the field is still true, as the runtime leaves it.
+    const sharedAudio: any = { playing: true }
     fakeGetMutable = (_entity: any) => sharedAudio
 
-    // Second call should reuse the same entity and set playing = true on the shared object
+    // Second win: reuse the entity, and write false so the next write is a change.
     RewardModule.Reward()
     expect(createdEntities.length).toBe(1)
+    expect(sharedAudio.playing).toBe(false)
+    expect(addedSystems.length).toBe(1)
+
+    // The engine runs the one-shot system on the next frame.
+    expect(RewardModule.__flushPendingRewardRestartForTests()).toBe(true)
     expect(sharedAudio.playing).toBe(true)
+
+    // ...and it unregisters itself, so it does not run every frame afterwards.
+    expect(removedSystems.length).toBe(1)
+    expect(removedSystems[0]).toBe(addedSystems[0])
+    expect(RewardModule.__flushPendingRewardRestartForTests()).toBe(false)
+  })
+
+  it('does not stack a second pending restart when wins land in the same frame', () => {
+    RewardModule.Reward()
+
+    const sharedAudio: any = { playing: true }
+    fakeGetMutable = (_entity: any) => sharedAudio
+
+    RewardModule.Reward()
+    RewardModule.Reward()
+    RewardModule.Reward()
+
+    expect(addedSystems.length).toBe(1)
+    expect(sharedAudio.playing).toBe(false)
+
+    RewardModule.__flushPendingRewardRestartForTests()
+    expect(sharedAudio.playing).toBe(true)
+    expect(removedSystems.length).toBe(1)
+  })
+
+  it('falls back to an immediate playing = true when the runtime has no addSystem', () => {
+    RewardModule.Reward()
+
+    const sharedAudio: any = { playing: true }
+    fakeGetMutable = (_entity: any) => sharedAudio
+    delete (ecs as any).engine.addSystem
+
+    RewardModule.Reward()
+
+    // No frame will ever come, so the old behaviour stands: set it true now.
+    expect(sharedAudio.playing).toBe(true)
+    expect(addedSystems.length).toBe(0)
+    expect(RewardModule.__flushPendingRewardRestartForTests()).toBe(false)
+  })
+
+  it('falls back to an immediate playing = true when addSystem throws', () => {
+    RewardModule.Reward()
+
+    const sharedAudio: any = { playing: true }
+    fakeGetMutable = (_entity: any) => sharedAudio
+    ;(ecs as any).engine.addSystem = () => { throw new Error('no systems here') }
+
+    expect(() => RewardModule.Reward()).not.toThrow()
+    expect(sharedAudio.playing).toBe(true)
+    expect(RewardModule.__flushPendingRewardRestartForTests()).toBe(false)
+  })
+
+  it('a queued restart survives a missing AudioSource without throwing', () => {
+    RewardModule.Reward()
+
+    const sharedAudio: any = { playing: true }
+    fakeGetMutable = (_entity: any) => sharedAudio
+    RewardModule.Reward()
+    expect(addedSystems.length).toBe(1)
+
+    // The component disappears before the frame runs.
+    fakeGetMutable = (_entity: any) => null
+    expect(() => RewardModule.__flushPendingRewardRestartForTests()).not.toThrow()
+    expect(removedSystems.length).toBe(1)
   })
 
   it('toggleSound tolerates missing AudioSource without throwing', () => {
