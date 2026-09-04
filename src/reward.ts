@@ -3,6 +3,28 @@ import ReactEcs, { Button, Label, ReactEcsRenderer, UiEntity } from '@dcl/sdk/re
 import { UiCanvasInformation, Entity, InputAction, ColliderLayer, Animator, AudioSource, AvatarAttach, GltfContainer, Material, Transform, VideoPlayer, VisibilityComponent, engine, pointerEventsSystem } from '@dcl/sdk/ecs';
 import { normalizeQuaternionOrIdentity } from './quat'
 
+// The side of the FloorBaseGrass_01.glb plate in metres, at scale 1. It is
+// inferred from how src/index.ts uses the same model: the scene is four parcels
+// (scene.json declares "0,0","0,1","1,0","1,1", so x 0..32 by z 0..32) and the
+// floor is that model at scale 2 centred on { x: 16, z: 16 }, which only covers
+// the scene exactly if one unscaled tile is 16m. Every footprint calculation —
+// here and in src/scene-bounds.test.ts — reads this one constant, so if the
+// model turns out to be a different size there is a single number to correct.
+export const GRASS_TILE_SIZE = 16
+
+// Where the win reward sits and how big it is.
+//
+// It used to be the same model at scale 2 centred on { x: 16, y: 0.02, z: 18 }:
+// a second 32x32m plate that covered practically the whole scene one centimetre
+// above the floor, spanned z 2..34 — two metres past the north edge of the
+// declared parcels, which the client flags as out of bounds — and carried a
+// pointer collider, so after the first solve the player's ground was one giant
+// clickable slab. At scale 0.25 it is a 4m plate spanning 22..26 on both axes:
+// a small patch near the north-east corner, well inside the scene, clear of the
+// machine at { x: 8, z: 8 } and of the player's spawn near the origin.
+export const REWARD_POSITION = { x: 24, y: 0.02, z: 24 }
+export const REWARD_SCALE = 0.25
+
 // The reward is ONE scene entity, created on the first win and reused on every
 // win after it. Building it per win stacked another grass mesh and another
 // AudioSource on the same spot each time the puzzle was re-solved, and left the
@@ -103,10 +125,12 @@ export function Reward() {
     src: 'models/grass/FloorBaseGrass_01.glb',
     visibleMeshesCollisionMask: ColliderLayer.CL_POINTER,
   })
-  // Move reward so it doesn't overlap scene grass at (16,0.01,16)
+  // A small plate near a corner: see REWARD_POSITION / REWARD_SCALE above. It
+  // clears the scene grass at (16, 0.01, 16) in height only, as before, but no
+  // longer covers it — and it stays inside the declared parcels.
   Transform.create(reward, {
-    position: { x: 16, y: 0.02, z: 18 },
-    scale: { x: 2, y: 2, z: 2 },
+    position: { x: REWARD_POSITION.x, y: REWARD_POSITION.y, z: REWARD_POSITION.z },
+    scale: { x: REWARD_SCALE, y: REWARD_SCALE, z: REWARD_SCALE },
     rotation: normalizeQuaternionOrIdentity({ x: 0, y: 0, z: 0, w: 1 }) // w should be 1 for a valid quaternion
   })
 

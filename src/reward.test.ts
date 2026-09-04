@@ -105,6 +105,37 @@ describe('Reward', () => {
     expect(norm2).toBeCloseTo(1, 6)
   })
 
+  it('places the reward at the exported REWARD_POSITION and REWARD_SCALE', () => {
+    RewardModule.Reward()
+
+    const transformCreateMock: any = (ecs as any).Transform.create
+    const calls = transformCreateMock.mock.calls
+    // The mock is shared across tests in this file, so read the newest call.
+    const opts = calls[calls.length - 1][1]
+
+    expect(opts.position).toEqual(RewardModule.REWARD_POSITION)
+    expect(opts.scale).toEqual({
+      x: RewardModule.REWARD_SCALE,
+      y: RewardModule.REWARD_SCALE,
+      z: RewardModule.REWARD_SCALE
+    })
+  })
+
+  it('keeps the reward a small plate well inside the four declared parcels', () => {
+    RewardModule.Reward()
+
+    // The scene is x 0..32 by z 0..32 (scene.json parcels "0,0","0,1","1,0","1,1").
+    // src/scene-bounds.test.ts derives those bounds from scene.json itself; this
+    // is the cheap guard that lives next to the constants.
+    const half = (RewardModule.GRASS_TILE_SIZE * RewardModule.REWARD_SCALE) / 2
+    expect(half).toBeLessThan(8) // not a scene-wide slab any more
+    for (const axis of ['x', 'z'] as const) {
+      const centre = (RewardModule.REWARD_POSITION as any)[axis]
+      expect(centre - half).toBeGreaterThanOrEqual(0)
+      expect(centre + half).toBeLessThanOrEqual(32)
+    }
+  })
+
   it('restarts the win song on a later win: playing goes false now, true on the next frame', () => {
     // First call creates it, with playing: true already on the component.
     RewardModule.Reward()
