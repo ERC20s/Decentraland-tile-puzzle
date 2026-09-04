@@ -1,5 +1,8 @@
 import { Color4 } from '@dcl/sdk/math';
-import ReactEcs, { Button, Label, ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs';
+// The UI toolkit ('@dcl/sdk/react-ecs': Button, Label, ReactEcsRenderer,
+// UiEntity) is imported by src/ui.tsx, which is where the UI lives. Nothing in
+// this file referenced it, so loading it here only cost reward.test.ts one more
+// runtime module to resolve.
 import { UiCanvasInformation, Entity, InputAction, ColliderLayer, Animator, AudioSource, AvatarAttach, GltfContainer, Material, Transform, VideoPlayer, VisibilityComponent, engine, pointerEventsSystem } from '@dcl/sdk/ecs';
 import { normalizeQuaternionOrIdentity } from './quat'
 

@@ -10,6 +10,17 @@ Requirements: Node.js >=16.0.0, npm >=6.0.0 (declared in package.json)
 - npm run start    (runs the scene locally with the Decentraland SDK dev server)
 - npm run build    (compiles the scene; runs "sdk-commands build" as declared in package.json)
 - npm run deploy   (publishes the scene; runs "sdk-commands deploy" as declared in package.json)
+- npm test         (runs the unit suite; "vitest run" as declared in package.json)
+
+Tests
+
+The suite lives beside the code in src/*.test.ts (index, reward, ui, puzzle, quat, assets, scene-assets, scene-bounds) and is configured by vitest.config.ts at the root:
+
+- Module ids the Decentraland client injects rather than npm installs ('~system/RestrictedActions' and every other '~system/...') are aliased to the minimal stubs in test/stubs/, so a test that imports src/index.ts or an SDK bundle can resolve them under node.
+- '@dcl/asset-packs/dist/scene-entrypoint' is aliased to a no-op initAssetPacks, because src/index.ts calls it at module load against whatever engine mock the test file defined.
+- test.globals is on: src/ui.test.ts and src/puzzle.test.ts use test/expect/afterEach without importing them, the other six files import from 'vitest' explicitly. Both styles run.
+
+The stubs exist so modules can be loaded, not to emulate the client; a test that needs real behaviour from one of them should mock it locally with vi.mock. Nothing under test/ or vitest.config.ts ships with the scene — .dclignore excludes *.ts, .* and src.
 
 Features
 
@@ -43,6 +54,8 @@ Project layout
 - models/grass/FloorBaseGrass_01.glb and models/grass/Floor_Grass01.png.png: the grass floor model and its texture, shown as part of the win reward.
 - images/: the 25 numbered tile images (image1x1.png through image5x5.png) that fill the 5x5 puzzle grid built in src/ui.tsx.
 - music/: the win-song audio files (champ.mp3, champ2.mp3, champ3.mp3) played by the reward entity in src/reward.ts.
+- vitest.config.ts: test-run configuration (module aliases for the client-injected '~system/...' ids and the asset-packs entrypoint, globals, node environment, JSX factory for src/ui.tsx).
+- test/stubs/: test-only stand-ins for modules the Decentraland client injects at runtime, referenced only by vitest.config.ts.
 - .dclignore: lists files excluded when the scene is deployed.
 
 Troubleshooting: Creator Hub "The launch link is not trusted" / creator-hub-bin-path

@@ -3,7 +3,10 @@ import { } from '@dcl/sdk/math'
 import { UiCanvasInformation, Entity, InputAction, ColliderLayer, Animator, AudioSource, AvatarAttach, GltfContainer, Material, Transform, VideoPlayer, VisibilityComponent, engine, pointerEventsSystem } from '@dcl/sdk/ecs'
 import { initAssetPacks } from '@dcl/asset-packs/dist/scene-entrypoint'
 import { setupUi } from './ui'
-import { openExternalUrl, movePlayerTo } from '~system/RestrictedActions'
+// NOTE: '~system/RestrictedActions' used to be imported here for openExternalUrl
+// and movePlayerTo. Neither was ever called, and the id is injected by the
+// Decentraland client rather than installed, so it was one more module the test
+// run had to resolve for nothing. Re-add the import if the scene ever needs it.
 import { Reward } from './reward'
 import { normalizeQuaternionOrIdentity } from './quat'
 
