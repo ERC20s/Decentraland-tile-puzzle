@@ -20,6 +20,21 @@ function makeResetPuzzleMock(shouldThrow = false) {
   };
 }
 
+// A reset mock that deals a visibly DIFFERENT board on every call: it rotates
+// the current images by the call number. Needed by the reset tests, where the
+// point is that a second deal must not look like the first one.
+function makeRotatingResetMock() {
+  let call = 0;
+  return (boxes: any, _images?: any) => {
+    calledReset = true;
+    call++;
+    const current = boxes.map((b: any) => b.box.image);
+    for (let i = 0; i < boxes.length; i++) {
+      boxes[i].box.image = current[(i + call) % current.length];
+    }
+  };
+}
+
 function makeSetUiRendererMock() {
   return (renderer: any) => {
     calledSetUi = true;
@@ -68,18 +83,73 @@ test('setupUi onWin injection and simulateSwap trigger win', () => {
   expect(calledOnWin).toBe(true);
 });
 
-test('setupUi resetToOriginal restarts the puzzle without triggering win', () => {
+test('setupUi resetToOriginal undoes the round without dealing a new board or winning', () => {
   const resetMock = makeResetPuzzleMock(false);
   const setUiMock = makeSetUiRendererMock();
   const onWinSpy = makeOnWinSpy();
-  calledReset = false;
   const api = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock, onWin: onWinSpy as any });
   calledReset = false;
-  // resetToOriginal should re-run resetPuzzle (like Shuffle) and must never
-  // auto-win, since the mock always leaves the board unsolved (one swap away).
+  // Reset restores the round's own starting scramble: it must NOT deal a new
+  // board (so the injected resetPuzzle is not called) and must never auto-win.
   const result = api.resetToOriginal();
-  expect(calledReset).toBe(true);
+  expect(calledReset).toBe(false);
   expect(result).toBe(false);
+  expect(calledOnWin).toBe(false);
+});
+
+test('reset puts back exactly the board captured at the start of the round', () => {
+  const api = setupUi({
+    resetPuzzle: makeRotatingResetMock(),
+    setUiRenderer: makeSetUiRendererMock(),
+    onWin: makeOnWinSpy() as any
+  });
+  const start = api.getBoardImages();
+  expect(api.getRoundStartImages()).toEqual(start);
+
+  // Make a mess of it.
+  api.simulateSwap(0, 7);
+  api.simulateSwap(3, 19);
+  api.simulateSwap(11, 24);
+  expect(api.getBoardImages()).not.toEqual(start);
+
+  api.resetToOriginal();
+  expect(api.getBoardImages()).toEqual(start);
+  expect(api.getMoveCount()).toBe(0);
+  expect(calledOnWin).toBe(false);
+});
+
+test('reset after a shuffle restores the new scramble, not the previous round', () => {
+  const api = setupUi({
+    resetPuzzle: makeRotatingResetMock(),
+    setUiRenderer: makeSetUiRendererMock(),
+    onWin: makeOnWinSpy() as any
+  });
+  const firstRound = api.getBoardImages();
+  api.simulateShuffle();
+  const secondRound = api.getBoardImages();
+  expect(secondRound).not.toEqual(firstRound);
+  expect(api.getRoundStartImages()).toEqual(secondRound);
+
+  api.simulateSwap(2, 15);
+  api.resetToOriginal();
+  expect(api.getBoardImages()).toEqual(secondRound);
+  expect(api.getBoardImages()).not.toEqual(firstRound);
+});
+
+test('reset never leaves the board solved, so it cannot fire the win reward', () => {
+  const resetMock = makeResetPuzzleMock(false);
+  const api = setupUi({
+    resetPuzzle: resetMock,
+    setUiRenderer: makeSetUiRendererMock(),
+    onWin: makeOnWinSpy() as any
+  });
+  // The mock leaves the board one swap from solved; solve it, then reset.
+  expect(api.simulateSwap(1, 2)).toBe(true);
+  calledOnWin = false;
+  api.resetToOriginal();
+  // Back to the unsolved starting scramble, and no second win fired.
+  expect(api.getBoardImages()).toEqual(api.getRoundStartImages());
+  expect(api.getBoardImages()).not.toEqual(api.getSolvedImages());
   expect(calledOnWin).toBe(false);
 });
 

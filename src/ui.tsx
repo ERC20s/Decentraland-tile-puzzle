@@ -100,6 +100,30 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
   // solved order is already captured in originalImages at module load.
   let showPreview = false;
 
+  // The scramble THIS round started from, in slot order. Reset restores this,
+  // which is the one thing a Reset button is expected to do: undo the round.
+  // It is deliberately NOT originalImages — handing the player the solved
+  // picture would satisfy checkIfOriginalImages and fire the win reward.
+  let roundStart: string[] = [];
+
+  // Take the snapshot straight from the board, so it always matches the tiles
+  // the player is actually looking at (even if resetPuzzle threw and left the
+  // board as it was: that board is still the one the round starts from).
+  const captureRoundStart = () => {
+    roundStart = boxes.map(b => b.box.image);
+  };
+
+  // Put the captured scramble back into the live boxes. Returns false when
+  // there is nothing usable to restore, so callers can leave the board alone
+  // instead of writing undefined into a tile.
+  const restoreRoundStart = () => {
+    if (roundStart.length !== boxes.length) return false;
+    for (let i = 0; i < boxes.length; i++) {
+      boxes[i].box.image = roundStart[i];
+    }
+    return true;
+  };
+
   // Clearing the selection is now just clearing dragIndex: the selection is
   // drawn as a tint on the selected tile itself (see SELECTED_TINT below), so
   // there is no separate highlight entity left to reset.
@@ -119,6 +143,9 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     const msg = e instanceof Error ? e.message : String(e);
     log = `Shuffle failed: ${msg}`;
   }
+
+  // Whatever the board holds after setup IS this round's starting position.
+  captureRoundStart();
 
   // Single deterministic click handler: first click selects, same click deselects,
   // different click swaps immediately and checks for win.
@@ -177,20 +204,19 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
       log = "Preview is on. Click Preview again before resetting.";
       return;
     }
-    try {
-      // Reset restarts the puzzle the same way Shuffle does: it must never
-      // leave the board solved, so it never calls checkIfOriginalImages /
-      // runOnWin. It reuses the same runResetPuzzle path as ShuffleBoard.
-      runResetPuzzle(boxes, imageUrls.slice());
+    // Reset UNDOES the round: it puts back the scramble this round started
+    // from, so a player forty moves deep gets their board back instead of a
+    // brand new deal (that is what Shuffle is for). It must never leave the
+    // board solved, so it never calls checkIfOriginalImages / runOnWin — and
+    // it cannot, because roundStart is a scramble, not originalImages.
+    if (!restoreRoundStart()) {
+      log = "Nothing to reset to yet. Click Shuffle to start a round.";
       resetHighlight();
-      moveCount = 0;
-      log = "Board reset. Click a tile to select it.";
-    } catch (e: any) {
-      console.warn('[ui] ResetBoard: resetPuzzle failed', e);
-      const msg = e instanceof Error ? e.message : String(e);
-      log = `Reset failed: ${msg}`;
-      resetHighlight();
+      return;
     }
+    resetHighlight();
+    moveCount = 0;
+    log = "Board reset to how this round started. Click a tile to select it.";
   };
 
   const ShuffleBoard = () => {
@@ -200,6 +226,9 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     }
     try {
       runResetPuzzle(boxes, imageUrls.slice());
+      // A shuffle starts a NEW round: from here on Reset restores this deal,
+      // not the one before it.
+      captureRoundStart();
       resetHighlight();
       moveCount = 0;
       log = "Board shuffled. Click a tile to select it.";
@@ -343,18 +372,13 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
       return false;
     },
     resetToOriginal: () => {
-      // Mirrors ResetBoard: restarts the puzzle via runResetPuzzle instead of
-      // restoring originalImages directly, so it can never trivially satisfy
-      // checkIfOriginalImages and fire runOnWin on its own.
+      // Mirrors ResetBoard: restores the scramble the round started from, not
+      // originalImages, so it can never trivially satisfy checkIfOriginalImages
+      // and fire runOnWin on its own. Always returns false (never a win).
       if (showPreview) return false;
-      try {
-        runResetPuzzle(boxes, imageUrls.slice());
-        moveCount = 0;
-        return false;
-      } catch (e: any) {
-        console.warn('[ui] resetToOriginal: resetPuzzle failed', e);
-        return false;
-      }
+      if (!restoreRoundStart()) return false;
+      moveCount = 0;
+      return false;
     },
     simulateShuffle: () => ShuffleBoard(),
     // Board geometry, so a test can assert the tiles actually touch and that
@@ -385,6 +409,8 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     getBoardImages: () => boxes.map(box => box.box.image),
     // The finished picture, in slot order — what the preview draws.
     getSolvedImages: () => originalImages.slice(),
+    // The scramble this round started from — what Reset puts back.
+    getRoundStartImages: () => roundStart.slice(),
     // What the board would show right now: the preview when it is on, the
     // player's own scramble when it is off.
     getVisibleImages: () => (showPreview ? originalImages.slice() : boxes.map(box => box.box.image))
