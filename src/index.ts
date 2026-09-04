@@ -22,29 +22,48 @@ initAssetPacks(engine, pointerEventsSystem, {
 // can avoid duplicate registrations or explicitly unregister during tests.
 let machinePointerUnregister: (() => void) | null = null
 
+// The scene owns ONE grass mesh and ONE machine, created on the first main()
+// and reused on every call after it. Building them per call stacked another
+// grass mesh at (16, 0.01, 16) and another machine inside the first, both with
+// pointer colliders and neither ever removed — the same defect src/reward.ts
+// already fixed for the reward entity. Positions, scales and rotations are
+// constants, so a later call has nothing to refresh.
+let grassEntity: Entity | null = null
+let machineEntity: Entity | null = null
+
 export async function main() {
-  const grass = engine.addEntity();
-  GltfContainer.create(grass, {
-    src: 'models/grass/FloorBaseGrass_01.glb',
-    visibleMeshesCollisionMask: ColliderLayer.CL_POINTER,
-  });
-  Transform.create(grass, { 
-    position: { x: 16, y: 0.01, z: 16 }, 
-    scale: { x: 2, y: 2, z: 2 }, 
-    rotation: normalizeQuaternionOrIdentity({ x: 0, y: 0, z: 0, w: 1 }) // w must be 1 for a valid (identity) quaternion
-  });
+  if (grassEntity === null) {
+    const grass = engine.addEntity();
+    GltfContainer.create(grass, {
+      src: 'models/grass/FloorBaseGrass_01.glb',
+      visibleMeshesCollisionMask: ColliderLayer.CL_POINTER,
+    });
+    Transform.create(grass, {
+      position: { x: 16, y: 0.01, z: 16 },
+      scale: { x: 2, y: 2, z: 2 },
+      rotation: normalizeQuaternionOrIdentity({ x: 0, y: 0, z: 0, w: 1 }) // w must be 1 for a valid (identity) quaternion
+    });
+    grassEntity = grass
+  }
 
 
-  const machine = engine.addEntity();
-  GltfContainer.create(machine, {
-    src: 'models/machine.glb',
-    visibleMeshesCollisionMask: ColliderLayer.CL_POINTER,
-  });
-  Transform.create(machine, { 
-    position: { x: 8, y: 0, z: 8 }, 
-    scale: { x: 0.75, y: 0.75, z: 0.75 }, 
-    rotation: normalizeQuaternionOrIdentity({ x: 0, y: Math.sin(3 * Math.PI / 4), z: 0, w: Math.cos(3 * Math.PI / 4) })
-  });
+  if (machineEntity === null) {
+    const created = engine.addEntity();
+    GltfContainer.create(created, {
+      src: 'models/machine.glb',
+      visibleMeshesCollisionMask: ColliderLayer.CL_POINTER,
+    });
+    Transform.create(created, {
+      position: { x: 8, y: 0, z: 8 },
+      scale: { x: 0.75, y: 0.75, z: 0.75 },
+      rotation: normalizeQuaternionOrIdentity({ x: 0, y: Math.sin(3 * Math.PI / 4), z: 0, w: Math.cos(3 * Math.PI / 4) })
+    });
+    machineEntity = created
+  }
+
+  // Always the stored machine: a second call re-registers the pointer handler
+  // on the entity that already exists rather than on a fresh duplicate.
+  const machine = machineEntity
 
   // If we already have an unregister function, call it to avoid stacking handlers
   if (typeof machinePointerUnregister === 'function') {
@@ -81,8 +100,11 @@ export async function main() {
   }
 }
 
-// Test-only helper: unregister the machine pointer handler and clear its storage
-// NOTE: exported only for tests; do not use from production code.
+// Test-only helper: unregister the machine pointer handler and clear the stored
+// scene entities so the next main() builds a fresh grass and machine.
+// NOTE: exported only for tests; do not use from production code. It does not
+// call engine.removeEntity — the scene keeps one grass and one machine for its
+// whole life, and the test SDK mock provides no removeEntity.
 export function __resetMainForTests() {
   if (typeof machinePointerUnregister === 'function') {
     try {
@@ -92,4 +114,6 @@ export function __resetMainForTests() {
     }
   }
   machinePointerUnregister = null
+  grassEntity = null
+  machineEntity = null
 }
