@@ -53,9 +53,30 @@ export const BOARD_LEFT = 100;
 export const PANEL_WIDTH = 800;
 export const PANEL_HEIGHT = 600;
 
+// Padding used when computing whether the whole panel fits the canvas.
+const PANEL_PAD = 16;
+
 // The selected tile is tinted instead of sitting on an underlay: with no
 // gutters left, an underlay drawn behind the tiles would be completely covered.
 const SELECTED_TINT = Color4.create(0.5, 0.3, 0.7, 1);
+
+// Compute a clamped scale so the panel never exceeds the canvas. Returns a
+// value in (0.35..1] — never above 1, never below 0.35. If the canvas sizes
+// are not finite the function returns 1.
+export function computeBoardScale(canvasWidth: number, canvasHeight: number) {
+  if (!isFinite(canvasWidth) || !isFinite(canvasHeight)) return 1;
+  const byWidth = (canvasWidth - 2 * PANEL_PAD) / PANEL_WIDTH;
+  const byHeight = (canvasHeight - 2 * PANEL_PAD) / PANEL_HEIGHT;
+  const raw = Math.min(1, byWidth, byHeight);
+  return Math.max(0.35, raw);
+}
+
+// Compute the panel's left margin so the panel is centred inside the canvas.
+// If canvasWidth is not finite the old hard-coded 300px is returned.
+export function computeBoardLeft(canvasWidth: number, scale: number) {
+  if (!isFinite(canvasWidth) || !isFinite(scale)) return 300;
+  return Math.max(0, Math.round((canvasWidth - PANEL_WIDTH * scale) / 2));
+}
 
 for (let i = 0; i < gridRows; i++) {
   for (let j = 0; j < gridCols; j++) {
@@ -241,100 +262,159 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     }
   };
 
-  const uiComponent = () => (
-    <UiEntity
-      uiTransform={{
-        width: PANEL_WIDTH,
-        height: PANEL_HEIGHT,
-        margin: '16px 0 8px 300px',
-      }}
-    >
-      <Button
-        key={"close"}
-        value={"X"}
+  const getCanvasSize = () => {
+    try {
+      const info = typeof UiCanvasInformation !== 'undefined' && UiCanvasInformation.getOrNull ? UiCanvasInformation.getOrNull((engine as any).RootEntity) : null;
+      if (!info) return { width: NaN, height: NaN };
+      // the engine's canvas info shapes vary; try common property names
+      const width = (info as any).width ?? (info as any).pixelWidth ?? (info as any).canvasWidth ?? NaN;
+      const height = (info as any).height ?? (info as any).pixelHeight ?? (info as any).canvasHeight ?? NaN;
+      return { width, height };
+    } catch (e) {
+      return { width: NaN, height: NaN };
+    }
+  };
+
+  const getScaledTileLayoutInternal = (canvasWidth: number, canvasHeight: number) => {
+    // If canvas sizes are not finite, signal caller to use unscaled geometry
+    if (!isFinite(canvasWidth) || !isFinite(canvasHeight)) {
+      return {
+        tiles: boxes.map(b => ({ index: b.box.index, top: b.box.top, left: b.box.left, width: b.box.width, height: b.box.height })),
+        scale: 1,
+        panel: { left: 300, top: 16, width: PANEL_WIDTH, height: PANEL_HEIGHT }
+      };
+    }
+
+    const scale = computeBoardScale(canvasWidth, canvasHeight);
+    const panelLeft = computeBoardLeft(canvasWidth, scale);
+    const panelTop = 16; // unchanged top margin
+    const panelWidth = Math.round(PANEL_WIDTH * scale);
+    const panelHeight = Math.round(PANEL_HEIGHT * scale);
+
+    const scaledTile = Math.max(1, Math.round(TILE * scale));
+    const scaledBoardTop = Math.round(BOARD_TOP * scale);
+    const scaledBoardLeft = Math.round(BOARD_LEFT * scale);
+    const pitch = scaledTile; // enforce edge-to-edge by using rounded pitch
+
+    const tiles = [] as any[];
+    for (let row = 0; row < gridRows; row++) {
+      for (let col = 0; col < gridCols; col++) {
+        const index = row * gridCols + col;
+        const left = scaledBoardLeft + col * pitch;
+        const top = scaledBoardTop + row * pitch;
+        tiles.push({ index: boxes[index].box.index, left, top, width: scaledTile, height: scaledTile });
+      }
+    }
+
+    return { tiles, scale, panel: { left: panelLeft, top: panelTop, width: panelWidth, height: panelHeight } };
+  };
+
+  const uiComponent = () => {
+    const canvas = getCanvasSize();
+    const scale = computeBoardScale(canvas.width, canvas.height);
+    const panelLeft = computeBoardLeft(canvas.width, scale);
+    const panelTop = 16;
+    const panelWidthScaled = Math.round(PANEL_WIDTH * scale);
+    const panelHeightScaled = Math.round(PANEL_HEIGHT * scale);
+
+    const closeSize = Math.max(1, Math.round(25 * scale));
+    const buttonW = Math.max(1, Math.round(90 * scale));
+    const buttonH = Math.max(1, Math.round(25 * scale));
+    const resetLeft = Math.round(100 * scale);
+    const previewLeft = Math.round(200 * scale);
+    const labelLeft = Math.round(110 * scale);
+
+    const scaled = getScaledTileLayoutInternal(canvas.width, canvas.height);
+
+    return (
+      <UiEntity
         uiTransform={{
-          width: 25,
-          height: 25,
-          margin: { top: 0, right: 25 },
+          width: panelWidthScaled,
+          height: panelHeightScaled,
+          margin: `16px 0 8px ${panelLeft}px`,
         }}
-        onMouseDown={() => runSetUiRenderer(close)}
-      />
-      <Button
-        key={"shuffle"}
-        value={"Shuffle"}
-        uiTransform={{
-          width: 90,
-          height: 25,
-          margin: { top: 0, left: 0 },
-        }}
-        onMouseDown={() => ShuffleBoard()}
-      />
-      <Button
-        key={"reset"}
-        value={"Reset"}
-        uiTransform={{
-          width: 90,
-          height: 25,
-          margin: { top: 0, left: 100 },
-        }}
-        onMouseDown={() => ResetBoard()}
-      />
-      <Button
-        key={"preview"}
-        value={showPreview ? "Hide" : "Preview"}
-        uiTransform={{
-          width: 90,
-          height: 25,
-          margin: { top: 0, left: 200 },
-        }}
-        onMouseDown={() => TogglePreview()}
-      />
-      {boxes.map((box, i) => (
+      >
         <Button
-          key={`box${box.box.index}`}
-          value={box.box.text?.toString()}
+          key={"close"}
+          value={"X"}
           uiTransform={{
-            width: box.box.width,
-            height: box.box.height,
-            margin: { top: box.box.top, left: box.box.left },
+            width: closeSize,
+            height: closeSize,
+            margin: { top: 0, right: Math.round(25 * scale) },
+          }}
+          onMouseDown={() => runSetUiRenderer(close)}
+        />
+        <Button
+          key={"shuffle"}
+          value={"Shuffle"}
+          uiTransform={{
+            width: buttonW,
+            height: buttonH,
+            margin: { top: 0, left: 0 },
+          }}
+          onMouseDown={() => ShuffleBoard()}
+        />
+        <Button
+          key={"reset"}
+          value={"Reset"}
+          uiTransform={{
+            width: buttonW,
+            height: buttonH,
+            margin: { top: 0, left: resetLeft },
+          }}
+          onMouseDown={() => ResetBoard()}
+        />
+        <Button
+          key={"preview"}
+          value={showPreview ? "Hide" : "Preview"}
+          uiTransform={{
+            width: buttonW,
+            height: buttonH,
+            margin: { top: 0, left: previewLeft },
+          }}
+          onMouseDown={() => TogglePreview()}
+        />
+        {scaled.tiles.map((tile: any, i: number) => (
+          <Button
+            key={`box${tile.index}`}
+            value={boxes[i].box.text?.toString()}
+            uiTransform={{
+              width: tile.width,
+              height: tile.height,
+              margin: { top: tile.top, left: tile.left },
+              positionType: 'absolute',
+            }}
+            uiBackground={{
+              textureMode: 'stretch',
+              texture: {
+                src: showPreview ? originalImages[i] : boxes[i].box.image,
+              },
+              color: dragIndex === boxes[i].box.index ? SELECTED_TINT : Color4.White(),
+            }}
+            onMouseDown={() => handleClick(boxes[i], boxes[i].box.index)}
+          />
+        ))}
+        <Label
+          value={log}
+          uiTransform={{
+            width: 'auto',
+            height: 'auto',
+            margin: { top: Math.round(10 * scale), left: labelLeft },
             positionType: 'absolute',
           }}
-          uiBackground={{
-            textureMode: 'stretch',
-            texture: {
-              // Preview on: this slot shows the tile that BELONGS here in the
-              // solved picture. Preview off: the tile actually sitting here.
-              src: showPreview ? originalImages[i] : box.box.image,
-            },
-            // The selection: the chosen tile is drawn through a purple tint,
-            // every other tile through plain white (i.e. untinted). The board
-            // has no gutters any more, so there is nowhere for an underlay to
-            // show — the tile has to carry the highlight itself.
-            color: dragIndex === box.box.index ? SELECTED_TINT : Color4.White(),
-          }}
-          onMouseDown={() => handleClick(box, box.box.index)}
         />
-      ))}
-      <Label
-        value={log}
-        uiTransform={{
-          width: 'auto',
-          height: 'auto',
-          margin: { top: 10, left: 110 },
-          positionType: 'absolute',
-        }}
-      />
-      <Label
-        value={`Moves: ${moveCount}`}
-        uiTransform={{
-          width: 'auto',
-          height: 'auto',
-          margin: { top: 35, left: 110 },
-          positionType: 'absolute',
-        }}
-      />
-    </UiEntity>
-  );
+        <Label
+          value={`Moves: ${moveCount}`}
+          uiTransform={{
+            width: 'auto',
+            height: 'auto',
+            margin: { top: Math.round(35 * scale), left: labelLeft },
+            positionType: 'absolute',
+          }}
+        />
+      </UiEntity>
+    );
+  };
 
   const close = () => (
     <UiEntity
@@ -391,6 +471,12 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
       height: b.box.height
     })),
     getPanelSize: () => ({ width: PANEL_WIDTH, height: PANEL_HEIGHT }),
+    // New: return the scaled tile layout for a given canvas size so tests can
+    // assert the scaled geometry without invoking the renderer.
+    getScaledTileLayout: (canvasWidth: number, canvasHeight: number) => {
+      const scaled = getScaledTileLayoutInternal(canvasWidth, canvasHeight);
+      return { tiles: scaled.tiles.map(t => ({ index: t.index, top: t.top, left: t.left, width: t.width, height: t.height })), scale: scaled.scale, panel: scaled.panel };
+    },
     // Selection, without the renderer: takes the 1-based tile index a click
     // would carry and runs exactly the handler the Button runs.
     simulateClick: (index: number) => {
