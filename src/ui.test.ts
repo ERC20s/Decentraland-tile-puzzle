@@ -291,6 +291,37 @@ test('the whole board fits inside the panel', () => {
   }
 });
 
+// New tests for scaling behaviour
+test('scale is 1 on a 1920x1080 canvas', () => {
+  const api = setupUi({ resetPuzzle: makeResetPuzzleMock(false), setUiRenderer: makeSetUiRendererMock() });
+  const scaled = (api as any).getScaledTileLayout(1920, 1080);
+  expect(scaled.scale).toBe(1);
+});
+
+test('at 1024x600 every scaled tile lies inside the canvas and inside the panel', () => {
+  const api = setupUi({ resetPuzzle: makeResetPuzzleMock(false), setUiRenderer: makeSetUiRendererMock() });
+  const scaled = (api as any).getScaledTileLayout(1024, 600);
+  // every tile is inside panel bounds
+  for (const tile of scaled.tiles) {
+    expect(tile.left).toBeGreaterThanOrEqual(0);
+    expect(tile.top).toBeGreaterThanOrEqual(0);
+    expect(tile.left + tile.width).toBeLessThanOrEqual(scaled.panel.width);
+    expect(tile.top + tile.height).toBeLessThanOrEqual(scaled.panel.height);
+    // tiles stay square
+    expect(tile.width).toBe(tile.height);
+  }
+});
+
+test('null canvas info leaves geometry unchanged', () => {
+  const api = setupUi({ resetPuzzle: makeResetPuzzleMock(false), setUiRenderer: makeSetUiRendererMock() });
+  // pass non-finite values to simulate missing canvas info
+  const scaled = (api as any).getScaledTileLayout(NaN, NaN);
+  const base = api.getTileLayout();
+  expect(scaled.scale).toBe(1);
+  // layout should equal the base layout
+  expect(scaled.tiles.map((t: any) => ({ top: t.top, left: t.left, width: t.width, height: t.height }))).toEqual(base.map((b: any) => ({ top: b.top, left: b.left, width: b.width, height: b.height })));
+});
+
 test('every tile is square and the same size', () => {
   const api = setupUi({ resetPuzzle: makeResetPuzzleMock(false), setUiRenderer: makeSetUiRendererMock() });
   const layout = api.getTileLayout();
