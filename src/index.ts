@@ -12,20 +12,40 @@ import { normalizeQuaternionOrIdentity } from './quat'
 // main(), before any entity work, and only once — the same shape #200/#201
 // gave the grass and machine entities.
 let assetPacksInitialised = false
+let assetPacksInitPromise: Promise<void> | null = null
 
-function initAssetPacksOnce() {
+async function initAssetPacksOnce(): Promise<void> {
+  // If we've already completed initialisation, nothing to do.
   if (assetPacksInitialised) return
-  assetPacksInitialised = true
-  initAssetPacks(engine, pointerEventsSystem, {
-    Animator,
-    AudioSource,
-    AvatarAttach,
-    Transform,
-    VisibilityComponent,
-    GltfContainer,
-    Material,
-    VideoPlayer
-  })
+
+  // If initialisation is in progress, wait for it to finish.
+  if (assetPacksInitPromise) {
+    return assetPacksInitPromise
+  }
+
+  // Start initialisation and remember the promise so concurrent callers
+  // can await the same work instead of invoking initAssetPacks again.
+  assetPacksInitPromise = (async () => {
+    try {
+      await initAssetPacks(engine, pointerEventsSystem, {
+        Animator,
+        AudioSource,
+        AvatarAttach,
+        Transform,
+        VisibilityComponent,
+        GltfContainer,
+        Material,
+        VideoPlayer
+      })
+      assetPacksInitialised = true
+    } catch (e) {
+      // Clear the stored promise so callers can retry if initialisation failed.
+      assetPacksInitPromise = null
+      throw e
+    }
+  })()
+
+  return assetPacksInitPromise
 }
 
 // Module-local storage for the machine pointer unregister function so we
@@ -43,7 +63,7 @@ let machineEntity: Entity | null = null
 
 export async function main() {
   // First statement: the asset packs must be ready before any entity work.
-  initAssetPacksOnce()
+  await initAssetPacksOnce()
 
   if (grassEntity === null) {
     const grass = engine.addEntity();
@@ -130,4 +150,5 @@ export function __resetMainForTests() {
   grassEntity = null
   machineEntity = null
   assetPacksInitialised = false
+  assetPacksInitPromise = null
 }
