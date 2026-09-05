@@ -234,4 +234,21 @@ describe('scene entry (src/index.ts)', () => {
     await main()
     expect(lastPointerOpts).not.toBeNull()
   })
+
+  it('retries initAssetPacks after a transient failure', async () => {
+    // Make the first initAssetPacks invocation throw, then allow the normal mock
+    const boom = new Error('initAssetPacks exploded')
+    ;(initAssetPacks as any).mockImplementationOnce(() => { callOrder.push('initAssetPacks-fail'); throw boom })
+
+    // The first main() should surface the failure
+    await expect(main()).rejects.toThrow(boom)
+
+    // A later main() should invoke initAssetPacks again (the stored promise was cleared)
+    await main()
+    expect(initAssetPacks).toHaveBeenCalledTimes(2)
+
+    // Ensure the failing call was observed before the successful retry
+    expect(callOrder[0]).toBe('initAssetPacks-fail')
+    expect(callOrder[1]).toBe('initAssetPacks')
+  })
 })
