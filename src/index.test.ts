@@ -251,4 +251,31 @@ describe('scene entry (src/index.ts)', () => {
     expect(callOrder[0]).toBe('initAssetPacks-fail')
     expect(callOrder[1]).toBe('initAssetPacks')
   })
+
+  it('concurrent main() callers share the same initAssetPacks promise', async () => {
+    // Create a controllable deferred promise so the init appears slow
+    function deferred<T>() {
+      let resolve!: (v: T | PromiseLike<T>) => void
+      let reject!: (e: any) => void
+      const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej })
+      return { promise, resolve, reject }
+    }
+
+    const d = deferred<void>()
+
+    // Make the next initAssetPacks return the deferred promise
+    ;(initAssetPacks as any).mockImplementationOnce(() => { callOrder.push('initAssetPacks'); return d.promise })
+
+    // Start two mains concurrently without awaiting the first
+    const a = main()
+    const b = main()
+
+    // Resolve the deferred init and await both callers
+    d.resolve()
+    await Promise.all([a, b])
+
+    // initAssetPacks must have been called exactly once and both mains completed
+    expect(initAssetPacks).toHaveBeenCalledTimes(1)
+    expect(callOrder.filter(c => c === 'initAssetPacks').length).toBe(1)
+  })
 })
