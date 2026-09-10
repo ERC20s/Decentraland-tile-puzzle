@@ -60,7 +60,8 @@ describe('scene composite assets should not contain all-zero or non-finite quate
 
       const normSq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w
       const norm = Math.sqrt(normSq)
-      if (!Number.isFinite(norm) || norm <= Number.EPSILON) {
+      const MIN_NORM = 1e-12
+      if (!Number.isFinite(norm) || norm <= MIN_NORM) {
         invalids.push({ q, path: pathStr, reason: 'zero-length quaternion (all-zero) or non-finite norm' })
       }
     }
