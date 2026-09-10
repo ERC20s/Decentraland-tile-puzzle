@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
+import { normalizeQuaternionOrIdentity } from './quat'
 
 function isNumber(v: any): boolean {
   return typeof v === 'number' && Number.isFinite(v)
@@ -58,11 +59,12 @@ describe('scene composite assets should not contain all-zero or non-finite quate
         continue
       }
 
+      // Use the runtime guard: treat quaternions with squared norm below
+      // MIN_NORM*MIN_NORM as identity/invalid to match normalizeQuaternionOrIdentity.
       const normSq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w
-      const norm = Math.sqrt(normSq)
       const MIN_NORM = 1e-12
-      if (!Number.isFinite(norm) || norm <= MIN_NORM) {
-        invalids.push({ q, path: pathStr, reason: 'zero-length quaternion (all-zero) or non-finite norm' })
+      if (!Number.isFinite(normSq) || normSq <= MIN_NORM * MIN_NORM) {
+        invalids.push({ q, path: pathStr, reason: 'zero-length quaternion (all-zero) or non-finite/tiny norm' })
       }
     }
 
