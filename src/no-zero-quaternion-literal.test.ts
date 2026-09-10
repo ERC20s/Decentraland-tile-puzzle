@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'fs'
 import { join, extname } from 'path'
+import { normalizeQuaternionOrIdentity } from './quat'
 
 function walk(dir: string): string[] {
   const res: string[] = []
@@ -119,15 +120,22 @@ describe('ban inline quaternion numeric literals with w === 0 or all-zero compon
         const y = Number(my[1])
         const z = Number(mz[1])
         const w = Number(mw[1])
-        const allZero = Object.is(x, 0) && Object.is(y, 0) && Object.is(z, 0) && Object.is(w, 0)
+        const originalIsIdentity = Object.is(x, 0) && Object.is(y, 0) && Object.is(z, 0) && Object.is(w, 1)
         const wZero = Object.is(w, 0)
-        if (allZero || wZero) {
+
+        // Use the runtime normalization to detect tiny or otherwise invalid
+        // quaternions that would be treated as the identity at runtime. Do not
+        // flag the explicit identity literal {0,0,0,1} which is acceptable.
+        const normalized = normalizeQuaternionOrIdentity({ x, y, z, w })
+        const becameIdentity = Object.is(normalized.x, 0) && Object.is(normalized.y, 0) && Object.is(normalized.z, 0) && Object.is(normalized.w, 1)
+
+        if (!originalIsIdentity && (wZero || becameIdentity)) {
           // Determine line and column using the cleaned buffer index of the opening brace
           const before = cleaned.slice(0, openIdx)
           const line = before.split('\n').length
           const col = openIdx - before.lastIndexOf('\n')
           const snippet = raw.slice(Math.max(0, openIdx - 40), Math.min(raw.length, closeIdx + 40)).replace(/\n/g, '↵')
-          const reason = allZero ? 'all components are zero' : 'w is zero'
+          const reason = becameIdentity ? 'normalizes to identity (tiny or invalid norm)' : 'w is zero'
           problemLines.push({ file, line, col, snippet, reason })
         }
 
@@ -138,10 +146,7 @@ describe('ban inline quaternion numeric literals with w === 0 or all-zero compon
 
     if (problemLines.length > 0) {
       const msgs = problemLines.map((p) => `${p.file}:${p.line}:${p.col}: (${p.reason}) ${p.snippet}`)
-      expect(problemLines.length, `Found inline quaternion numeric literal problems:
-${msgs.join('\n')}
-
-Please replace the literal with a normalized quaternion (e.g. use normalizeQuaternionOrIdentity) or compute it at runtime. Avoid inline numeric quaternion literals.`).toBe(0)
+      expect(problemLines.length, `Found inline quaternion numeric literal problems:\n${msgs.join('\n')}\n\nPlease replace the literal with a normalized quaternion (e.g. use normalizeQuaternionOrIdentity) or compute it at runtime. Avoid inline numeric quaternion literals.`).toBe(0)
     }
   })
 })
