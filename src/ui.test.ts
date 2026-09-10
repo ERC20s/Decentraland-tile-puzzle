@@ -322,6 +322,54 @@ test('null canvas info leaves geometry unchanged', () => {
   expect(scaled.tiles.map((t: any) => ({ top: t.top, left: t.left, width: t.width, height: t.height }))).toEqual(base.map((b: any) => ({ top: b.top, left: b.left, width: b.width, height: b.height })));
 });
 
+// New tests for the closed-panel 'open' button's scaling (mirrors the
+// getScaledTileLayout tests above): the button must track the same
+// computeBoardScale/computeBoardLeft the open panel uses, instead of sitting
+// at a fixed left:300px regardless of canvas size.
+test('close layout is unscaled (30x25 at left 300) on a 1920x1080 canvas', () => {
+  const api = setupUi({ resetPuzzle: makeResetPuzzleMock(false), setUiRenderer: makeSetUiRendererMock() });
+  const closeLayout = (api as any).getCloseLayout(1920, 1080);
+  expect(closeLayout.scale).toBe(1);
+  expect(closeLayout.width).toBe(30);
+  expect(closeLayout.height).toBe(25);
+  expect(closeLayout.left).toBeGreaterThanOrEqual(0);
+  expect(closeLayout.left + closeLayout.width).toBeLessThanOrEqual(1920);
+});
+
+test('at a small canvas the close button shrinks and stays within the canvas bounds', () => {
+  const api = setupUi({ resetPuzzle: makeResetPuzzleMock(false), setUiRenderer: makeSetUiRendererMock() });
+  const smallWidth = 400;
+  const smallHeight = 300;
+  const closeLayout = (api as any).getCloseLayout(smallWidth, smallHeight);
+  // scale must match computeBoardScale's floor/behaviour for this canvas
+  expect(closeLayout.scale).toBeLessThan(1);
+  expect(closeLayout.width).toBeLessThan(30);
+  expect(closeLayout.height).toBeLessThan(25);
+  // the button must be fully inside the canvas, not pinned at a fixed 300px
+  expect(closeLayout.left).toBeGreaterThanOrEqual(0);
+  expect(closeLayout.left + closeLayout.width).toBeLessThanOrEqual(smallWidth);
+});
+
+test('close button left/width scale down consistently with the open panel at the same canvas size', () => {
+  const api = setupUi({ resetPuzzle: makeResetPuzzleMock(false), setUiRenderer: makeSetUiRendererMock() });
+  const width = 500;
+  const height = 400;
+  const closeLayout = (api as any).getCloseLayout(width, height);
+  const scaled = (api as any).getScaledTileLayout(width, height);
+  // both derive left from the same computeBoardLeft(canvasWidth, scale) call
+  expect(closeLayout.scale).toBe(scaled.scale);
+  expect(closeLayout.left).toBe(scaled.panel.left);
+});
+
+test('non-finite canvas size falls back to the old unscaled close geometry', () => {
+  const api = setupUi({ resetPuzzle: makeResetPuzzleMock(false), setUiRenderer: makeSetUiRendererMock() });
+  const closeLayout = (api as any).getCloseLayout(NaN, NaN);
+  expect(closeLayout.scale).toBe(1);
+  expect(closeLayout.width).toBe(30);
+  expect(closeLayout.height).toBe(25);
+  expect(closeLayout.left).toBe(300);
+});
+
 test('every tile is square and the same size', () => {
   const api = setupUi({ resetPuzzle: makeResetPuzzleMock(false), setUiRenderer: makeSetUiRendererMock() });
   const layout = api.getTileLayout();

@@ -309,6 +309,18 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     return { tiles, scale, panel: { left: panelLeft, top: panelTop, width: panelWidth, height: panelHeight } };
   };
 
+  // Layout for the closed-panel 'open' button, computed the same way
+  // uiComponent derives closeSize/buttonW: same computeBoardScale/computeBoardLeft
+  // so the reopen button tracks wherever the panel itself would be drawn,
+  // instead of sitting at a fixed left:300px regardless of canvas size.
+  const getCloseLayoutInternal = (canvasWidth: number, canvasHeight: number) => {
+    const scale = computeBoardScale(canvasWidth, canvasHeight);
+    const left = computeBoardLeft(canvasWidth, scale);
+    const width = Math.max(1, Math.round(30 * scale));
+    const height = Math.max(1, Math.round(25 * scale));
+    return { left, top: 16, width, height, scale };
+  };
+
   const uiComponent = () => {
     const canvas = getCanvasSize();
     const scale = computeBoardScale(canvas.width, canvas.height);
@@ -416,25 +428,29 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     );
   };
 
-  const close = () => (
-    <UiEntity
-      uiTransform={{
-        width: 30,
-        height: 25,
-        margin: '16px 0 8px 300px',
-      }}
-    >
-      <Button
-        value={"open"}
+  const close = () => {
+    const canvas = getCanvasSize();
+    const closeLayout = getCloseLayoutInternal(canvas.width, canvas.height);
+    return (
+      <UiEntity
         uiTransform={{
-          width: 30,
-          height: 25,
-          margin: { top: 0, left: 0 },
+          width: closeLayout.width,
+          height: closeLayout.height,
+          margin: `16px 0 8px ${closeLayout.left}px`,
         }}
-        onMouseDown={() => runSetUiRenderer(uiComponent)}
-      />
-    </UiEntity>
-  );
+      >
+        <Button
+          value={"open"}
+          uiTransform={{
+            width: closeLayout.width,
+            height: closeLayout.height,
+            margin: { top: 0, left: 0 },
+          }}
+          onMouseDown={() => runSetUiRenderer(uiComponent)}
+        />
+      </UiEntity>
+    );
+  };
 
   runSetUiRenderer(uiComponent);
 
@@ -477,6 +493,11 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
       const scaled = getScaledTileLayoutInternal(canvasWidth, canvasHeight);
       return { tiles: scaled.tiles.map(t => ({ index: t.index, top: t.top, left: t.left, width: t.width, height: t.height })), scale: scaled.scale, panel: scaled.panel };
     },
+    // The closed-panel 'open' button's computed left/width/height/scale for a
+    // given canvas size, so a test can assert it stays inside the canvas and
+    // scales down consistently with computeBoardScale, without invoking the
+    // renderer.
+    getCloseLayout: (canvasWidth: number, canvasHeight: number) => getCloseLayoutInternal(canvasWidth, canvasHeight),
     // Selection, without the renderer: takes the 1-based tile index a click
     // would carry and runs exactly the handler the Button runs.
     simulateClick: (index: number) => {
