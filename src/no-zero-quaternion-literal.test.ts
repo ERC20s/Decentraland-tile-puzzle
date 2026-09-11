@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readdirSync, readFileSync, statSync } from 'fs'
+import { readdirSync, readFileSync, lstatSync } from 'fs'
 import { join, extname } from 'path'
 import { normalizeQuaternionOrIdentity } from './quat'
 
@@ -7,7 +7,8 @@ function walk(dir: string): string[] {
   const res: string[] = []
   for (const name of readdirSync(dir)) {
     const p = join(dir, name)
-    const st = statSync(p)
+    const st = lstatSync(p)
+    // treat symbolic links as non-directories to avoid cycles
     if (st.isDirectory()) res.push(...walk(p))
     else res.push(p)
   }
@@ -34,7 +35,8 @@ function stripCommentsAndStrings(s: string): string {
     }
 
     if (state === 'squote') {
-      if (ch === "\\") { out.push('  '); i += 2; continue }
+      // handle escape without running past the end
+      if (ch === "\\") { if (i + 1 < n) { out.push('  '); i += 2 } else { out.push(' '); i += 1 } ; continue }
       if (ch === "'") { out.push(' '); state = 'none'; i++; continue }
       out.push(' ')
       i++
@@ -42,7 +44,7 @@ function stripCommentsAndStrings(s: string): string {
     }
 
     if (state === 'dquote') {
-      if (ch === "\\") { out.push('  '); i += 2; continue }
+      if (ch === "\\") { if (i + 1 < n) { out.push('  '); i += 2 } else { out.push(' '); i += 1 } ; continue }
       if (ch === '"') { out.push(' '); state = 'none'; i++; continue }
       out.push(' ')
       i++
@@ -50,11 +52,46 @@ function stripCommentsAndStrings(s: string): string {
     }
 
     if (state === 'bquote') {
-      if (ch === "\\") { out.push('  '); i += 2; continue }
+      if (ch === "\\") { if (i + 1 < n) { out.push('  '); i += 2 } else { out.push(' '); i += 1 } ; continue }
       if (ch === '`') { out.push(' '); state = 'none'; i++; continue }
       if (ch === '$' && s[i+1] === '{') { out.push('  '); i += 2;
-        while (i < n && s[i] !== '}') { out.push(' '); i++ }
-        if (i < n && s[i] === '}') { out.push(' '); i++ }
+        // consume a balanced interpolation, preserving newlines, and avoid ending too early on nested '}'
+        let depth = 1
+        while (i < n && depth > 0) {
+          const c = s[i]
+          if (c === '{') { depth++; out.push(' '); i++; continue }
+          if (c === '}') { depth--; out.push(' '); i++; continue }
+          if (c === "'" || c === '"') {
+            // skip quoted spans inside the interpolation
+            const q = c
+            out.push(' ')
+            i++
+            while (i < n) {
+              const cc = s[i]
+              if (cc === '\\') { if (i + 1 < n) { out.push(' '); i += 2 } else { out.push(' '); i += 1 } ; continue }
+              if (cc === q) { out.push(' '); i++; break }
+              out.push(cc === '\n' ? '\n' : ' ')
+              i++
+            }
+            continue
+          }
+          if (c === '`') {
+            // nested template inside interpolation
+            out.push(' ')
+            i++
+            while (i < n) {
+              const cc = s[i]
+              if (cc === '\\') { if (i + 1 < n) { out.push(' '); i += 2 } else { out.push(' '); i += 1 } ; continue }
+              if (cc === '`') { out.push(' '); i++; break }
+              if (cc === '$' && s[i+1] === '{') { depth++; out.push('  '); i += 2; continue }
+              out.push(cc === '\n' ? '\n' : ' ')
+              i++
+            }
+            continue
+          }
+          out.push(c === '\n' ? '\n' : ' ')
+          i++
+        }
         continue
       }
       out.push(' ')
@@ -92,8 +129,8 @@ describe('ban inline quaternion numeric literals with w === 0 or all-zero compon
 
     const problemLines: Array<{ file: string; line: number; col: number; snippet: string; reason: string }> = []
 
-    // number literal matcher (simple): integers, decimals, exponents, optional sign
-    const num = '([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)'
+    // number literal matcher (simple): integers, decimals (including leading .5), exponents, optional sign
+    const num = '([+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?)'
     const propRe = (name: string) => new RegExp(`\\b${name}\\s*:\\s*${num}`)
 
     for (const file of files) {
@@ -105,9 +142,22 @@ describe('ban inline quaternion numeric literals with w === 0 or all-zero compon
       let m: RegExpExecArray | null
       while ((m = anchor.exec(cleaned)) !== null) {
         const idx = m.index
-        const openIdx = cleaned.lastIndexOf('{', idx)
-        const closeIdx = cleaned.indexOf('}', idx)
-        if (openIdx === -1 || closeIdx === -1) continue
+        // find a balanced brace pair around the anchor; scan backward for an opening '{'
+        let openIdx = -1
+        for (let j = idx; j >= 0; j--) { if (cleaned[j] === '{') { openIdx = j; break } }
+        if (openIdx === -1) continue
+        // scan forward from the opening brace to find its matching closing brace
+        let depth = 0
+        let closeIdx = -1
+        for (let j = openIdx; j < cleaned.length; j++) {
+          const c = cleaned[j]
+          if (c === '{') depth++
+          else if (c === '}') {
+            depth--
+            if (depth === 0) { closeIdx = j; break }
+          }
+        }
+        if (closeIdx === -1) continue
         const span = cleaned.slice(openIdx, closeIdx + 1)
 
         const mx = propRe('x').exec(span)
@@ -134,7 +184,8 @@ describe('ban inline quaternion numeric literals with w === 0 or all-zero compon
           const before = cleaned.slice(0, openIdx)
           const line = before.split('\n').length
           const col = openIdx - before.lastIndexOf('\n')
-          const snippet = raw.slice(Math.max(0, openIdx - 40), Math.min(raw.length, closeIdx + 40)).replace(/\n/g, '↵')
+          // compute the snippet from the cleaned buffer to match indices, and show newlines as ↵
+          const snippet = cleaned.slice(Math.max(0, openIdx - 40), Math.min(cleaned.length, closeIdx + 40)).replace(/\n/g, '↵')
           const reason = becameIdentity ? 'normalizes to identity (tiny or invalid norm)' : 'w is zero'
           problemLines.push({ file, line, col, snippet, reason })
         }

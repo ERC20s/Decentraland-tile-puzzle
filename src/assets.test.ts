@@ -115,7 +115,9 @@ describe('referenced local asset files should exist in the repository', () => {
         continue
       }
 
-      if (looksLikeText(readHead(full, 8))) {
+      // read the head once to avoid redundant I/O
+      const head = readHead(full, Math.max(8, PNG_SIGNATURE.length))
+      if (looksLikeText(head)) {
         problems.push(`${rel} starts with plain text — it looks like a placeholder, not a binary asset`)
       }
     }
@@ -167,10 +169,12 @@ describe('every asset path written in the scene source should be a real file', (
         continue
       }
       if (rel.endsWith('.composite')) continue // the composite is JSON on purpose
-      if (looksLikeText(readHead(full, 8))) {
+      // read the head once and reuse it for both tests
+      const head = readHead(full, Math.max(8, PNG_SIGNATURE.length))
+      if (looksLikeText(head)) {
         problems.push(`${rel} (referenced by ${where}) starts with plain text — placeholder, not a binary asset`)
       }
-      if (rel.endsWith('.png') && !readHead(full, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
+      if (rel.endsWith('.png') && !head.slice(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
         problems.push(`${rel} (referenced by ${where}) does not start with the PNG signature`)
       }
     }
