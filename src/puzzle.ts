@@ -1,31 +1,18 @@
-export interface BoxInfo {
-  box: {
-    index: number;
-    height: number;
-    width: number;
-    text: string;
-    image: string;
-    top: number;
-    left: number;
-    click: string;
-  };
-}
+// Pure puzzle rules: no SDK imports, so everything here runs (and is tested)
+// in plain Node.
+//
+// A board is a permutation of tile ids: board[slot] is the tile drawn in that
+// slot, and tile t belongs in slot t. Slots and tiles are both 0-based and
+// row-major, so on an N x N grid slot s is row floor(s / N), column s % N.
 
-// A tile is square: `size` is both its width and its height, and the caller
-// lays tiles out on a pitch of exactly `size` so neighbours touch edge to edge.
-// The default keeps every existing caller (and test) on the historic 100px tile.
-export const createBox = (index: number, top: number, left: number, image: string, size: number = 100): BoxInfo => ({
-  box: {
-    index: index,
-    height: size,
-    width: size,
-    text: "",
-    image: image,
-    top: top,
-    left: left,
-    click: "",
-  },
-});
+export type GridSize = 3 | 4 | 5;
+
+// The difficulty levels the UI offers, easiest first.
+export const GRID_SIZES: readonly GridSize[] = [3, 4, 5];
+
+export const isGridSize = (n: number): n is GridSize => (GRID_SIZES as readonly number[]).includes(n);
+
+export const solvedBoard = (size: GridSize): number[] => Array.from({ length: size * size }, (_, i) => i);
 
 // In-place Fisher-Yates shuffle with injectable RNG (defaults to Math.random)
 export const shuffleArray = <T>(array: T[], rng?: () => number): void => {
@@ -36,86 +23,87 @@ export const shuffleArray = <T>(array: T[], rng?: () => number): void => {
   }
 };
 
-// Return true iff boxes' images match originalImages elementwise
-export const checkIfOriginalImages = (boxes: BoxInfo[], originalImages: string[]): boolean => {
-  if (boxes.length !== originalImages.length) return false;
-  for (let i = 0; i < boxes.length; i++) {
-    if (boxes[i].box.image !== originalImages[i]) return false;
+// True iff every tile 0..length-1 appears exactly once.
+export const isPermutation = (board: readonly number[]): boolean => {
+  const seen = new Array<boolean>(board.length).fill(false);
+  for (const tile of board) {
+    if (!Number.isInteger(tile) || tile < 0 || tile >= board.length || seen[tile]) return false;
+    seen[tile] = true;
   }
   return true;
 };
 
-// Shuffle imageUrls without mutating the supplied array and assign to boxes images
-// Accepts an optional rng to make shuffling deterministic for tests
-export const resetPuzzle = (boxes: BoxInfo[], imageUrls: string[], rng?: () => number): void => {
-  // Fail fast if there are not enough images for the boxes
-  if (imageUrls.length < boxes.length) {
-    throw new Error('resetPuzzle requires imageUrls.length >= boxes.length');
-  }
+export const isSolved = (board: readonly number[]): boolean => board.every((tile, slot) => tile === slot);
 
-  // Work on a copy so callers' arrays are not mutated
-  const maxAttempts = 10;
-  let shuffled = imageUrls.slice();
-  let toAssign: string[] = [];
-
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    // copy here so each shuffle attempt starts from original imageUrls
-    shuffled = imageUrls.slice();
-    shuffleArray(shuffled, rng);
-    toAssign = shuffled.slice(0, boxes.length);
-
-    // check if this assignment is identical to the current boxes' images
-    let identical = true;
-    for (let i = 0; i < boxes.length; i++) {
-      if (boxes[i].box.image !== toAssign[i]) {
-        identical = false;
-        break;
-      }
-    }
-
-    if (!identical) break;
-    // otherwise retry up to maxAttempts
-  }
-
-  // If after retries we still have an assignment identical to the current board,
-  // and there exists at least one different-permutation possible, make a
-  // deterministic minimal change so the Shuffle action is not a silent no-op.
-  // Find out if toAssign matches current boxes now.
-  let stillIdentical = true;
-  for (let i = 0; i < boxes.length; i++) {
-    if (boxes[i].box.image !== toAssign[i]) {
-      stillIdentical = false;
-      break;
+// 0 for an even permutation, 1 for an odd one, from the inversion count.
+export const permutationParity = (board: readonly number[]): 0 | 1 => {
+  let inversions = 0;
+  for (let i = 0; i < board.length; i++) {
+    for (let j = i + 1; j < board.length; j++) {
+      if (board[i] > board[j]) inversions++;
     }
   }
-
-  if (stillIdentical && boxes.length >= 2) {
-    // Try to find two indices with differing images to swap.
-    let swapped = false;
-    for (let a = 0; a < toAssign.length - 1 && !swapped; a++) {
-      for (let b = a + 1; b < toAssign.length; b++) {
-        if (toAssign[a] !== toAssign[b]) {
-          const tmp = toAssign[a];
-          toAssign[a] = toAssign[b];
-          toAssign[b] = tmp;
-          swapped = true;
-          break;
-        }
-      }
-    }
-    // If no swap found, all images are identical and we leave toAssign as-is.
-  }
-
-  // assign whatever toAssign we have (may be identical if all attempts matched)
-  for (let i = 0; i < boxes.length; i++) {
-    boxes[i].box.image = toAssign[i];
-  }
+  return (inversions % 2) as 0 | 1;
 };
 
-// Swap images between two boxes by 1-based index i and j (matches existing ui behavior)
-export const swapTiles = (boxes: BoxInfo[], iIndex: number, jIndex: number): void => {
-  const i = iIndex - 1;
-  const j = jIndex - 1;
-  if (i < 0 || j < 0 || i >= boxes.length || j >= boxes.length) return;
-  [boxes[i].box.image, boxes[j].box.image] = [boxes[j].box.image, boxes[i].box.image];
+// Fewest two-tile swaps that solve the board: tiles minus permutation cycles.
+// Every swap flips the parity above, so this number always has that parity.
+export const minSwapsToSolve = (board: readonly number[]): number => {
+  const visited = new Array<boolean>(board.length).fill(false);
+  let cycles = 0;
+  for (let start = 0; start < board.length; start++) {
+    if (visited[start]) continue;
+    cycles++;
+    for (let slot = start; !visited[slot]; slot = board[slot]) visited[slot] = true;
+  }
+  return board.length - cycles;
+};
+
+// Players may swap ANY two tiles, so every permutation can be solved (in
+// minSwapsToSolve moves). Parity only rules out deals for a sliding puzzle,
+// where moves are restricted to the blank. What makes a swap board unsolvable
+// is a missing or duplicated tile, which is what this rejects.
+export const isSolvable = (board: readonly number[], size: GridSize): boolean =>
+  board.length === size * size && isPermutation(board);
+
+// A deal must be at least this many swaps from solved, so even 3x3 never opens
+// one or two moves from the finished picture.
+export const minScramble = (size: GridSize): number => Math.floor((size * size) / 2);
+
+// A fresh, solvable board at least minScramble(size) swaps from solved.
+export const dealBoard = (size: GridSize, rng?: () => number): number[] => {
+  const want = minScramble(size);
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const board = solvedBoard(size);
+    shuffleArray(board, rng);
+    if (minSwapsToSolve(board) >= want) return board;
+  }
+  // A degenerate RNG (constant, or stuck near one value) can keep producing
+  // near-solved boards. Rotating every tile one slot is a single cycle through
+  // all of them: size * size - 1 swaps, always above the minimum.
+  const solved = solvedBoard(size);
+  return solved.map((_, slot) => solved[(slot + 1) % solved.length]);
+};
+
+// Swap the tiles in two 0-based slots. Returns false (and changes nothing) for
+// an out-of-range slot or a slot swapped with itself.
+export const swapSlots = (board: number[], a: number, b: number): boolean => {
+  if (!Number.isInteger(a) || !Number.isInteger(b)) return false;
+  if (a < 0 || b < 0 || a >= board.length || b >= board.length || a === b) return false;
+  [board[a], board[b]] = [board[b], board[a]];
+  return true;
+};
+
+// Texture coordinates of tile t's square in a size x size split of one source
+// image, in the order SDK7's uiBackground.uvs expects: bottom-left, top-left,
+// top-right, bottom-right (clockwise from bottom-left), with v = 1 at the TOP
+// of the texture. Row 0 is the top row of the picture.
+export const tileUvs = (tile: number, size: GridSize): number[] => {
+  const row = Math.floor(tile / size);
+  const col = tile % size;
+  const u0 = col / size;
+  const u1 = (col + 1) / size;
+  const vTop = 1 - row / size;
+  const vBottom = 1 - (row + 1) / size;
+  return [u0, vBottom, u0, vTop, u1, vTop, u1, vBottom];
 };

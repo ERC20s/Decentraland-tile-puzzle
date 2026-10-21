@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-Decentraland SDK7 scene: an in-world 5x5 image tile-swap puzzle with Shuffle / Reset / Preview controls and a win reward.
-The pure puzzle rules (shuffle, swap, win detection) live in `src/puzzle.ts`; SDK7 entity/UI code is in `src/index.ts`, `src/ui.tsx`, `src/reward.ts`.
+Decentraland SDK7 scene: an in-world image tile-swap puzzle (3x3 / 4x4 / 5x5) with Shuffle / Reset / Preview controls, a move counter, timer, win screen with score and a win reward.
+The pure puzzle rules (deal, solvability, swap, win detection, tile UVs) live in `src/puzzle.ts` and the round state (moves, clock, score) in `src/game.ts`; neither imports the SDK. SDK7 entity/UI code is in `src/index.ts`, `src/ui.tsx`, `src/reward.ts`. Puzzle pictures are single square PNGs in `images/puzzles/`, listed in `src/images.ts` and sliced into tiles at runtime.
 
 ## Commands
 

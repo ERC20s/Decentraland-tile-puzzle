@@ -1,18 +1,20 @@
 import { test, expect } from 'vitest';
-import { createBox, shuffleArray, checkIfOriginalImages, resetPuzzle, swapTiles, BoxInfo } from './puzzle';
-
-function makeBoxesAndImages(): {boxes: BoxInfo[]; images: string[]; original: string[]} {
-  const imageUrls = [
-    'a','b','c','d','e'
-  ];
-  const boxes: BoxInfo[] = [];
-  for (let i = 0; i < 5; i++) {
-    boxes.push(createBox(i+1, 0, 0, imageUrls[i]));
-  }
-  const original = boxes.map(b => b.box.image);
-  const images = imageUrls.slice();
-  return {boxes, images, original};
-}
+import {
+  GRID_SIZES,
+  GridSize,
+  isGridSize,
+  solvedBoard,
+  shuffleArray,
+  isPermutation,
+  isSolved,
+  permutationParity,
+  minSwapsToSolve,
+  isSolvable,
+  minScramble,
+  dealBoard,
+  swapSlots,
+  tileUvs
+} from './puzzle';
 
 // simple deterministic RNG for tests: cycles through provided values
 function makeCycleRng(values: number[]) {
@@ -24,6 +26,17 @@ function makeCycleRng(values: number[]) {
   };
 }
 
+// Small seeded PRNG so the randomised tests are reproducible.
+function mulberry32(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 test('shuffleArray permutes elements', () => {
   const arr = [1,2,3,4,5];
@@ -41,191 +54,160 @@ test('shuffleArray with j === i at every step leaves the array as it was', () =>
   expect(arr).toEqual(['a', 'b', 'c', 'd']);
 });
 
-test('checkIfOriginalImages true only when equal', () => {
-  const {boxes, images, original} = makeBoxesAndImages();
-  expect(checkIfOriginalImages(boxes, original)).toBe(true);
-  // change one
-  boxes[0].box.image = 'z';
-  expect(checkIfOriginalImages(boxes, original)).toBe(false);
+test('the difficulty levels are 3x3, 4x4 and 5x5', () => {
+  expect(GRID_SIZES).toEqual([3, 4, 5]);
+  expect(isGridSize(4)).toBe(true);
+  expect(isGridSize(2)).toBe(false);
+  expect(isGridSize(6)).toBe(false);
 });
 
-test('swapTiles swaps exactly two tiles', () => {
-  const {boxes} = makeBoxesAndImages();
-  const before = boxes.map(b => b.box.image);
-  swapTiles(boxes, 1, 3);
-  const after = boxes.map(b => b.box.image);
-  expect(after[0]).toBe(before[2]);
-  expect(after[2]).toBe(before[0]);
-  for (let i = 0; i < boxes.length; i++) {
-    if (i !== 0 && i !== 2) expect(after[i]).toBe(before[i]);
+test('a solved board has tile t in slot t', () => {
+  expect(solvedBoard(3)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  expect(solvedBoard(5)).toHaveLength(25);
+  expect(isSolved(solvedBoard(4))).toBe(true);
+  expect(isSolved([0, 2, 1, 3])).toBe(false);
+});
+
+test('isPermutation rejects a missing, duplicated, out-of-range or fractional tile', () => {
+  expect(isPermutation([2, 0, 1])).toBe(true);
+  expect(isPermutation([0, 0, 1])).toBe(false); // 2 missing, 0 twice
+  expect(isPermutation([0, 1, 3])).toBe(false); // 3 is out of range
+  expect(isPermutation([0, -1, 1])).toBe(false);
+  expect(isPermutation([0, 1.5, 1])).toBe(false);
+});
+
+test('permutationParity counts inversions', () => {
+  expect(permutationParity([0, 1, 2])).toBe(0);
+  expect(permutationParity([1, 0, 2])).toBe(1); // one swap
+  expect(permutationParity([1, 2, 0])).toBe(0); // a 3-cycle is two swaps
+  expect(permutationParity([3, 2, 1, 0])).toBe(0); // 6 inversions
+  expect(permutationParity([1, 2, 3, 0])).toBe(1); // a 4-cycle is three swaps
+});
+
+test('minSwapsToSolve is tiles minus cycles', () => {
+  expect(minSwapsToSolve([0, 1, 2])).toBe(0);
+  expect(minSwapsToSolve([1, 0, 2])).toBe(1);
+  expect(minSwapsToSolve([1, 2, 0])).toBe(2);
+  expect(minSwapsToSolve([1, 0, 3, 2])).toBe(2); // two 2-cycles
+  expect(minSwapsToSolve([1, 2, 3, 0])).toBe(3);
+});
+
+test('the swap count always has the parity of the permutation (two independent computations agree)', () => {
+  const rng = mulberry32(11);
+  for (const size of GRID_SIZES) {
+    for (let i = 0; i < 300; i++) {
+      const board = solvedBoard(size);
+      shuffleArray(board, rng);
+      expect(minSwapsToSolve(board) % 2).toBe(permutationParity(board));
+    }
   }
 });
 
-// New tests for swapTiles edge cases
-
-test('swapTiles is no-op for invalid indices', () => {
-  const {boxes} = makeBoxesAndImages();
-  const before = boxes.map(b => b.box.image);
-  // inputs are 1-based: 0, -1 and boxes.length+1 are invalid and should be ignored
-  swapTiles(boxes, 0, 1);
-  swapTiles(boxes, -1, 2);
-  swapTiles(boxes, boxes.length + 1, 1);
-  const after = boxes.map(b => b.box.image);
-  expect(after).toEqual(before);
-});
-
-test('swapTiles with same indices leaves board unchanged', () => {
-  const {boxes} = makeBoxesAndImages();
-  const before = boxes.map(b => b.box.image);
-  // swapping the same 1-based index should be a no-op
-  swapTiles(boxes, 1, 1);
-  swapTiles(boxes, 3, 3);
-  const after = boxes.map(b => b.box.image);
-  expect(after).toEqual(before);
-});
-
-test('resetPuzzle reshuffles and assigns images and does not mutate input array', () => {
-  const {boxes, images, original} = makeBoxesAndImages();
-  const imagesBefore = images.slice();
-  resetPuzzle(boxes, images, makeCycleRng([0.6, 0.1, 0.2, 0.3]));
-  // images should be a permutation of original values
-  const after = boxes.map(b => b.box.image);
-  expect(after.length).toBe(original.length);
-  expect(after.sort()).toEqual(original.sort());
-  // input images array should not have been mutated
-  expect(images).toEqual(imagesBefore);
-});
-
-// New tests for resetPuzzle edge cases
-
-test('resetPuzzle throws when imageUrls shorter than boxes', () => {
-  const {boxes} = makeBoxesAndImages();
-  const shortImages = ['a','b','c']; // length 3 < boxes.length 5
-  expect(() => resetPuzzle(boxes, shortImages)).toThrow();
-});
-
-test('resetPuzzle accepts longer image array and uses first N shuffled images', () => {
-  const {boxes, original} = makeBoxesAndImages();
-  const longImages = ['a','b','c','d','e','f','g'];
-  resetPuzzle(boxes, longImages, makeCycleRng([0.7, 0.4, 0.2, 0.1]));
-  const after = boxes.map(b => b.box.image);
-  // boxes should have length 5 and be made from first 7 values (but exactly 5 assigned)
-  expect(after.length).toBe(5);
-  // Each assigned image must be one of the provided images
-  for (const img of after) {
-    expect(longImages.includes(img)).toBe(true);
+test('putting each tile home in turn solves the board in exactly minSwapsToSolve swaps', () => {
+  const rng = mulberry32(3);
+  for (let i = 0; i < 100; i++) {
+    const board = solvedBoard(5);
+    shuffleArray(board, rng);
+    const expected = minSwapsToSolve(board);
+    let swaps = 0;
+    for (let slot = 0; slot < board.length; slot++) {
+      if (board[slot] === slot) continue;
+      expect(swapSlots(board, slot, board.indexOf(slot))).toBe(true);
+      swaps++;
+    }
+    expect(isSolved(board)).toBe(true);
+    expect(swaps).toBe(expected);
   }
 });
 
-// Deterministic test to ensure resetPuzzle avoids no-op shuffles when possible
-
-test('resetPuzzle avoids perfect no-op shuffle when possible', () => {
-  const {boxes, images, original} = makeBoxesAndImages();
-  // Force boxes to a known state equal to original
-  for (let i = 0; i < boxes.length; i++) boxes[i].box.image = original[i];
-
-  // Use an RNG that will produce a shuffle identical to original on first attempt,
-  // then a different shuffle on the second attempt so resetPuzzle must retry.
-  // We craft values so that first shuffle picks indices producing the same order,
-  // then subsequent values change it. For simplicity we use values producing j=0,1,2,3,4 etc.
-  // 0.9 makes j === i at every step of a 5-element Fisher-Yates (4 draws), so
-  // the first attempt reproduces the current board; the next four draws of 0
-  // give a different order.
-  const rngValues = [0.9, 0.9, 0.9, 0.9, // first attempt: identity
-                     0.0, 0.0, 0.0, 0.0]; // second attempt: a real shuffle
-  resetPuzzle(boxes, images, makeCycleRng(rngValues));
-  const after = boxes.map(b => b.box.image);
-  // Exactly the second attempt's order: the retry ran, and the fallback swap
-  // (which would give b,a,c,d,e) did not.
-  expect(after).toEqual(['b', 'c', 'd', 'e', 'a']);
+test('isSolvable needs the right length and every tile exactly once', () => {
+  expect(isSolvable([1, 0, 2, 3, 4, 5, 6, 7, 8], 3)).toBe(true);
+  // Odd parity is still solvable when any two tiles may be swapped.
+  expect(permutationParity([1, 0, 2, 3, 4, 5, 6, 7, 8])).toBe(1);
+  expect(isSolvable(solvedBoard(4), 3)).toBe(false); // 16 tiles on a 3x3 board
+  expect(isSolvable([0, 0, 2, 3, 4, 5, 6, 7, 8], 3)).toBe(false); // tile 1 missing
 });
 
-// New deterministic fallback test: RNG that always produces identical shuffles
-// ensures resetPuzzle makes a minimal deterministic change instead of no-op.
-
-test('resetPuzzle makes minimal deterministic change when repeated shuffles match current board', () => {
-  const {boxes, images, original} = makeBoxesAndImages();
-  // Force boxes to a known state equal to original
-  for (let i = 0; i < boxes.length; i++) boxes[i].box.image = original[i];
-
-  // An RNG pinned just below 1 makes j === i at every step, so every shuffle
-  // attempt reproduces the current (solved) board.
-  const identityRng = makeCycleRng([0.999999]);
-  resetPuzzle(boxes, images, identityRng);
-  const after = boxes.map(b => b.box.image);
-
-  // Because images include at least two distinct values, the deterministic
-  // fallback swaps the first two differing entries.
-  expect(after).toEqual(['b', 'a', 'c', 'd', 'e']);
-  expect(checkIfOriginalImages(boxes, original)).toBe(false);
-});
-
-// Deterministic PRNG (mulberry32) so the property-style tests below are
-// reproducible run to run.
-function mulberry32(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function makeSolvedBoard(n: number): {boxes: BoxInfo[]; solved: string[]} {
-  const solved: string[] = [];
-  const boxes: BoxInfo[] = [];
-  for (let i = 0; i < n; i++) {
-    solved.push(`images/tile${i + 1}.png`);
-    boxes.push(createBox(i + 1, 0, 0, solved[i]));
-  }
-  return {boxes, solved};
-}
-
-test('shuffling a solved 5x5 board never deals a solved board and keeps every tile', () => {
+test('every deal at every size is solvable, unsolved and at least minScramble swaps away', () => {
   const rng = mulberry32(42);
-  for (let round = 0; round < 200; round++) {
-    const {boxes, solved} = makeSolvedBoard(25);
-    resetPuzzle(boxes, solved, rng);
-    const after = boxes.map(b => b.box.image);
-    expect(checkIfOriginalImages(boxes, solved)).toBe(false);
-    expect([...after].sort()).toEqual([...solved].sort());
+  for (const size of GRID_SIZES) {
+    for (let round = 0; round < 200; round++) {
+      const board = dealBoard(size, rng);
+      expect(isSolvable(board, size)).toBe(true);
+      expect(isSolved(board)).toBe(false);
+      expect(minSwapsToSolve(board)).toBeGreaterThanOrEqual(minScramble(size));
+    }
   }
 });
 
-test('a game: shuffle, then swap tiles back one move at a time until it is won', () => {
-  const {boxes, solved} = makeSolvedBoard(25);
-  resetPuzzle(boxes, solved, mulberry32(7));
-  expect(checkIfOriginalImages(boxes, solved)).toBe(false);
+test('minScramble is half the tiles, rounded down', () => {
+  expect(minScramble(3)).toBe(4);
+  expect(minScramble(4)).toBe(8);
+  expect(minScramble(5)).toBe(12);
+});
 
-  // Selection-sort the board with swapTiles (1-based, like the UI's clicks):
-  // each move puts one tile home, so the win must arrive within 24 moves and
-  // must not be reported before the last tile is placed.
-  let moves = 0;
-  for (let slot = 0; slot < boxes.length; slot++) {
-    if (boxes[slot].box.image === solved[slot]) continue;
-    const from = boxes.findIndex(b => b.box.image === solved[slot]);
-    expect(checkIfOriginalImages(boxes, solved)).toBe(false);
-    swapTiles(boxes, slot + 1, from + 1);
-    moves++;
-    expect(boxes[slot].box.image).toBe(solved[slot]);
+test('an RNG that never moves a tile still gets a full scramble: every tile rotated one slot', () => {
+  // floor(0.999999 * (i + 1)) === i, so every Fisher-Yates step is a no-op and
+  // all 20 attempts come back solved.
+  for (const size of GRID_SIZES) {
+    const board = dealBoard(size, () => 0.999999);
+    const n = size * size;
+    expect(board).toEqual(Array.from({ length: n }, (_, slot) => (slot + 1) % n));
+    expect(minSwapsToSolve(board)).toBe(n - 1);
   }
-  expect(moves).toBeGreaterThan(0);
-  expect(moves).toBeLessThanOrEqual(24);
-  expect(checkIfOriginalImages(boxes, solved)).toBe(true);
 });
 
-test('a single swap away from solved is not a win, and swapping back is', () => {
-  const {boxes, solved} = makeSolvedBoard(25);
-  swapTiles(boxes, 12, 13);
-  expect(checkIfOriginalImages(boxes, solved)).toBe(false);
-  swapTiles(boxes, 13, 12);
-  expect(checkIfOriginalImages(boxes, solved)).toBe(true);
+test('swapSlots swaps two 0-based slots', () => {
+  const board = [0, 1, 2, 3];
+  expect(swapSlots(board, 0, 3)).toBe(true);
+  expect(board).toEqual([3, 1, 2, 0]);
 });
 
-test('checkIfOriginalImages is false when the board and the solution differ in length', () => {
-  const {boxes, solved} = makeSolvedBoard(5);
-  expect(checkIfOriginalImages(boxes, solved.slice(0, 4))).toBe(false);
-  expect(checkIfOriginalImages(boxes.slice(0, 4), solved)).toBe(false);
+test('swapSlots refuses an out-of-range, fractional or identical slot and changes nothing', () => {
+  const board = [0, 1, 2, 3];
+  expect(swapSlots(board, -1, 2)).toBe(false);
+  expect(swapSlots(board, 0, 4)).toBe(false);
+  expect(swapSlots(board, 0.5, 2)).toBe(false);
+  expect(swapSlots(board, 2, 2)).toBe(false);
+  expect(board).toEqual([0, 1, 2, 3]);
+});
+
+test('tileUvs crops the corner tiles of a 5x5 split (bottom-left vertex first, v = 1 at the top)', () => {
+  // Tile 0 is the top-left fifth: u 0..0.2, v 0.8..1.
+  expect(tileUvs(0, 5)).toEqual([0, 0.8, 0, 1, 0.2, 1, 0.2, 0.8]);
+  // Tile 24 is the bottom-right fifth: u 0.8..1, v 0..0.2.
+  const last = tileUvs(24, 5);
+  const expected = [0.8, 0, 0.8, 0.2, 1, 0.2, 1, 0];
+  last.forEach((v, i) => expect(v).toBeCloseTo(expected[i], 12));
+});
+
+test('tileUvs crops the centre of a 3x3 split to the middle third', () => {
+  const uv = tileUvs(4, 3);
+  const expected = [1 / 3, 1 / 3, 1 / 3, 2 / 3, 2 / 3, 2 / 3, 2 / 3, 1 / 3];
+  uv.forEach((v, i) => expect(v).toBeCloseTo(expected[i], 12));
+});
+
+test('tileUvs tiles the whole texture edge to edge at every size, with no gap or overlap', () => {
+  const rect = (tile: number, size: GridSize) => {
+    const [u0, vBottom, , vTop, u1] = tileUvs(tile, size);
+    return { u0, u1, vTop, vBottom };
+  };
+  for (const size of GRID_SIZES) {
+    let area = 0;
+    for (let tile = 0; tile < size * size; tile++) {
+      const r = rect(tile, size);
+      expect(r.u1).toBeGreaterThan(r.u0);
+      expect(r.vTop).toBeGreaterThan(r.vBottom);
+      area += (r.u1 - r.u0) * (r.vTop - r.vBottom);
+      const col = tile % size;
+      const row = Math.floor(tile / size);
+      if (col < size - 1) expect(rect(tile + 1, size).u0).toBeCloseTo(r.u1, 12); // right neighbour
+      if (row < size - 1) expect(rect(tile + size, size).vTop).toBeCloseTo(r.vBottom, 12); // neighbour below
+      if (col === 0) expect(r.u0).toBe(0);
+      if (col === size - 1) expect(r.u1).toBe(1);
+      if (row === 0) expect(r.vTop).toBe(1);
+      if (row === size - 1) expect(r.vBottom).toBeCloseTo(0, 12);
+    }
+    expect(area).toBeCloseTo(1, 12);
+  }
 });
