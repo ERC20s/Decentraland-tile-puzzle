@@ -66,7 +66,7 @@ function scheduleAudioRestart(entity: Entity): boolean {
         anyEngine.removeSystem(system)
       }
     } catch (e) {
-      console.warn('[reward] Error while removing the one-shot audio restart system:', e)
+      console.error('[reward] Error while removing the one-shot audio restart system:', e)
     }
 
     try {
@@ -74,17 +74,17 @@ function scheduleAudioRestart(entity: Entity): boolean {
       if (audioSource && typeof audioSource.playing === 'boolean') {
         audioSource.playing = true
       } else {
-        console.warn('[reward] AudioSource missing or invalid when restarting the win song')
+        console.error('[reward] AudioSource missing or invalid when restarting the win song')
       }
     } catch (e) {
-      console.warn('[reward] Exception while restarting the win song:', e)
+      console.error('[reward] Exception while restarting the win song:', e)
     }
   }
 
   try {
     anyEngine.addSystem(system)
   } catch (e) {
-    console.warn('[reward] Could not schedule the win-song restart; playing it immediately instead:', e)
+    console.error('[reward] Could not schedule the win-song restart; playing it immediately instead:', e)
     pendingRestartSystem = null
     return false
   }
@@ -107,10 +107,10 @@ export function Reward() {
           audioSource.playing = true
         }
       } else {
-        console.warn('[reward] AudioSource missing or invalid on reused reward entity; cannot start playback')
+        console.error('[reward] AudioSource missing or invalid on reused reward entity; cannot start playback')
       }
     } catch (e) {
-      console.warn('[reward] Exception while accessing AudioSource on reused reward entity:', e)
+      console.error('[reward] Exception while accessing AudioSource on reused reward entity:', e)
     }
     return
   }
@@ -139,7 +139,7 @@ export function Reward() {
     try {
       rewardPointerUnregister()
     } catch (e) {
-      console.warn('[reward] Error while calling previous reward pointer unregister:', e)
+      console.error('[reward] Error while calling previous reward pointer unregister:', e)
     }
     rewardPointerUnregister = null
   }
@@ -168,18 +168,18 @@ export function toggleSound(entity: Entity) {
   try {
     const audioSource = AudioSource.getMutable(entity)
     if (!audioSource) {
-      console.warn('[reward] toggleSound: AudioSource.getMutable returned null or undefined')
+      console.error('[reward] toggleSound: AudioSource.getMutable returned null or undefined')
       return
     }
 
     if (typeof audioSource.playing !== 'boolean') {
-      console.warn('[reward] toggleSound: AudioSource.playing is not a boolean; skipping toggle')
+      console.error('[reward] toggleSound: AudioSource.playing is not a boolean; skipping toggle')
       return
     }
 
     audioSource.playing = !audioSource.playing
   } catch (e) {
-    console.warn('[reward] Exception while toggling AudioSource.playing:', e)
+    console.error('[reward] Exception while toggling AudioSource.playing:', e)
   }
 }
 
@@ -192,7 +192,7 @@ export function __resetRewardEntityForTests() {
     try {
       rewardPointerUnregister()
     } catch (e) {
-      console.warn('[reward] Error while calling rewardPointerUnregister in reset helper:', e)
+      console.error('[reward] Error while calling rewardPointerUnregister in reset helper:', e)
     }
   }
   rewardPointerUnregister = null
@@ -208,7 +208,7 @@ export function __resetRewardEntityForTests() {
         anyEngine.removeSystem(pending)
       }
     } catch (e) {
-      console.warn('[reward] Error while removing a pending restart system in reset helper:', e)
+      console.error('[reward] Error while removing a pending restart system in reset helper:', e)
     }
   }
 }

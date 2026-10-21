@@ -8,5 +8,8 @@
     "src/**/*.ts",
     "src/**/*.tsx"
   ],
+  "exclude": [
+    "src/**/*.test.ts"
+  ],
   "extends": "@dcl/sdk/types/tsconfig.ecs7.json"
 }

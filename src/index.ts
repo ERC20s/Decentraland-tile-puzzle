@@ -25,27 +25,31 @@ async function initAssetPacksOnce(): Promise<void> {
 
   // Start initialisation and remember the promise so concurrent callers
   // can await the same work instead of invoking initAssetPacks again.
-  assetPacksInitPromise = (async () => {
-    try {
-      await initAssetPacks(engine, pointerEventsSystem, {
-        Animator,
-        AudioSource,
-        AvatarAttach,
-        Transform,
-        VisibilityComponent,
-        GltfContainer,
-        Material,
-        VideoPlayer
-      })
-      assetPacksInitialised = true
-    } catch (e) {
-      // Clear the stored promise so callers can retry if initialisation failed.
-      assetPacksInitPromise = null
-      throw e
-    }
+  const attempt = (async () => {
+    await initAssetPacks(engine, pointerEventsSystem, {
+      Animator,
+      AudioSource,
+      AvatarAttach,
+      Transform,
+      VisibilityComponent,
+      GltfContainer,
+      Material,
+      VideoPlayer
+    })
+    assetPacksInitialised = true
   })()
+  assetPacksInitPromise = attempt
 
-  return assetPacksInitPromise
+  try {
+    await attempt
+  } catch (e) {
+    // Clear the stored promise so callers can retry if initialisation failed.
+    // This must run after the assignment above: clearing it inside the async
+    // body ran before the assignment when initAssetPacks threw synchronously,
+    // leaving the rejected promise stored and every later main() failing.
+    if (assetPacksInitPromise === attempt) assetPacksInitPromise = null
+    throw e
+  }
 }
 
 // Module-local storage for the machine pointer unregister function so we
@@ -103,7 +107,7 @@ export async function main() {
     try {
       machinePointerUnregister()
     } catch (e) {
-      console.warn('[main] Error while calling previous machine pointer unregister:', e)
+      console.error('[main] Error while calling previous machine pointer unregister:', e)
     }
     machinePointerUnregister = null
   }
@@ -120,7 +124,7 @@ export async function main() {
       try {
         setupUi()
       } catch (e) {
-        console.warn('[main] setupUi() threw while handling machine pointer down:', e)
+        console.error('[main] setupUi() threw while handling machine pointer down:', e)
       }
     }
   )
@@ -143,7 +147,7 @@ export function __resetMainForTests() {
     try {
       machinePointerUnregister()
     } catch (e) {
-      console.warn('[main] Error while calling machinePointerUnregister in reset helper:', e)
+      console.error('[main] Error while calling machinePointerUnregister in reset helper:', e)
     }
   }
   machinePointerUnregister = null

@@ -30,8 +30,21 @@ vi.mock('@dcl/sdk/ecs', () => {
       onPointerDown: vi.fn(() => () => { /* unregister */ })
     },
     InputAction: { IA_POINTER: 0 },
-    ColliderLayer: { CL_POINTER: 1 }
+    ColliderLayer: { CL_POINTER: 1 },
+    // Component handles src/index.ts passes through to initAssetPacks.
+    Animator: {},
+    AvatarAttach: {},
+    VisibilityComponent: {},
+    Material: {},
+    VideoPlayer: {},
+    UiCanvasInformation: {}
   }
+})
+
+// main() calls initAssetPacks first; the real entrypoint needs the
+// Decentraland client runtime ('~system/*' modules).
+vi.mock('@dcl/asset-packs/dist/scene-entrypoint', () => {
+  return { initAssetPacks: vi.fn() }
 })
 
 vi.mock('./ui', () => {

@@ -1,4 +1,34 @@
-import { afterEach, test, expect } from 'vitest';
+import { vi, afterEach, test, expect } from 'vitest';
+
+// src/ui.tsx imports the SDK7 renderer and ECS, whose real modules load
+// '~system/*' bindings that only exist inside the Decentraland client. Every
+// test here injects its own setUiRenderer, so the renderer is never called;
+// the mocks only have to make the imports resolve.
+vi.mock('@dcl/sdk/react-ecs', () => ({
+  default: { createElement: vi.fn() },
+  Button: vi.fn(),
+  Label: vi.fn(),
+  UiEntity: vi.fn(),
+  ReactEcsRenderer: { setUiRenderer: vi.fn() }
+}));
+vi.mock('@dcl/sdk/ecs', () => ({
+  engine: { RootEntity: 0 },
+  UiCanvasInformation: { getOrNull: vi.fn(() => null) },
+  InputAction: { IA_POINTER: 0 },
+  ColliderLayer: { CL_POINTER: 1 },
+  Animator: {},
+  AudioSource: {},
+  AvatarAttach: {},
+  GltfContainer: {},
+  Material: {},
+  Transform: {},
+  VideoPlayer: {},
+  VisibilityComponent: {},
+  pointerEventsSystem: {}
+}));
+// Every test injects onWin; the real Reward must never run here.
+vi.mock('./reward', () => ({ Reward: vi.fn() }));
+
 import { setupUi, __resetSetupUiForTests } from './ui';
 
 // Minimal mock types to track calls
@@ -12,7 +42,11 @@ function makeResetPuzzleMock(shouldThrow = false) {
     calledReset = true;
     // leave the board nearly solved: swap two tiles so one swap wins
     if (Array.isArray(boxes) && boxes.length >= 3) {
-      // ensure board is one swap from solved by swapping positions 1 and 2
+      // The board is module state shared by every test in this file, so first
+      // deal the solved order (setupUi passes imageUrls in canonical order)...
+      for (let i = 0; i < boxes.length; i++) boxes[i].box.image = images[i];
+      // ...then swap array slots 1 and 2, i.e. 1-based tiles 2 and 3, the
+      // indices simulateSwap / swapTiles take.
       const tmp = boxes[1].box.image;
       boxes[1].box.image = boxes[2].box.image;
       boxes[2].box.image = tmp;
@@ -78,8 +112,8 @@ test('setupUi onWin injection and simulateSwap trigger win', () => {
   const setUiMock = makeSetUiRendererMock();
   const onWinSpy = makeOnWinSpy();
   const api = setupUi({ resetPuzzle: resetMock, setUiRenderer: setUiMock, onWin: onWinSpy as any });
-  // the resetMock swapped positions 1 and 2; calling simulateSwap(1,2) should win
-  const result = api.simulateSwap(1, 2);
+  // the resetMock swapped tiles 2 and 3; swapping them back should win
+  const result = api.simulateSwap(2, 3);
   expect(result).toBe(true);
   expect(calledOnWin).toBe(true);
 });
@@ -145,7 +179,7 @@ test('reset never leaves the board solved, so it cannot fire the win reward', ()
     onWin: makeOnWinSpy() as any
   });
   // The mock leaves the board one swap from solved; solve it, then reset.
-  expect(api.simulateSwap(1, 2)).toBe(true);
+  expect(api.simulateSwap(2, 3)).toBe(true);
   calledOnWin = false;
   api.resetToOriginal();
   // Back to the unsolved starting scramble, and no second win fired.
@@ -212,7 +246,7 @@ test('setupUi swap attempted while preview is on changes nothing', () => {
   api.togglePreview();
   // the mock leaves the board one swap from solved: this swap would win if it
   // were allowed to happen at all.
-  const result = api.simulateSwap(1, 2);
+  const result = api.simulateSwap(2, 3);
   expect(result).toBe(false);
   expect(api.getBoardImages()).toEqual(before);
   expect(api.getMoveCount()).toBe(movesBefore);
@@ -442,6 +476,8 @@ test('calling setupUi twice reopens without reshuffling', () => {
   const boardBefore = api1.getBoardImages();
   const movesBefore = api1.getMoveCount();
   // second call should not run resetPuzzle again nor change move count or board
+  calledReset = false;
+  calledSetUi = false;
   const api2 = setupUi({ resetPuzzle: makeResetPuzzleMock(true), setUiRenderer: setUiMock });
   expect(calledReset).toBe(false); // second call's injected reset shouldn't be invoked
   expect(api2.getBoardImages()).toEqual(boardBefore);
