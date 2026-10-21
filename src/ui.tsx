@@ -102,7 +102,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     try {
       if (typeof activeSession.reopen === 'function') activeSession.reopen();
     } catch (e) {
-      console.warn('[ui] reopen failed', e);
+      console.error('[ui] reopen failed', e);
     }
     return activeSession;
   }
@@ -160,7 +160,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
     runResetPuzzle(boxes, imageUrls.slice());
   } catch (e: any) {
     // Do not allow a resetPuzzle exception to bubble into the Decentraland runtime.
-    console.warn('[ui] initial resetPuzzle failed', e);
+    console.error('[ui] initial resetPuzzle failed', e);
     const msg = e instanceof Error ? e.message : String(e);
     log = `Shuffle failed: ${msg}`;
   }
@@ -255,7 +255,7 @@ export function setupUi(deps?: { resetPuzzle?: typeof resetPuzzle; setUiRenderer
       log = "Board shuffled. Click a tile to select it.";
     } catch (e: any) {
       // Do not allow a resetPuzzle exception to bubble into the Decentraland runtime.
-      console.warn('[ui] ShuffleBoard: resetPuzzle failed', e);
+      console.error('[ui] ShuffleBoard: resetPuzzle failed', e);
       resetHighlight();
       const msg = e instanceof Error ? e.message : String(e);
       log = `Shuffle failed: ${msg}`;

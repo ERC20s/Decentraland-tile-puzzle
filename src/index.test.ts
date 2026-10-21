@@ -152,11 +152,13 @@ describe('scene entry (src/index.ts)', () => {
     expect(setupUiCalled).toBe(true)
   })
 
-  it('does not rethrow when setupUi throws, and warns instead', async () => {
+  it('does not rethrow when setupUi throws, and logs an error instead', async () => {
     await main()
     expect(lastPointerHandler).not.toBeNull()
 
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => { })
+    // console.error, not console.warn: the Decentraland scene runtime's console
+    // declares only log and error (@dcl/js-runtime).
+    const warn = vi.spyOn(console, 'error').mockImplementation(() => { })
     const boom = new Error('setupUi exploded')
     ;(setupUi as any).mockImplementationOnce(() => { setupUiCalled = true; throw boom })
 
