@@ -1,18 +1,19 @@
 import { describe, it } from 'vitest'
 import fs from 'fs'
 import path from 'path'
+import { PUZZLE_IMAGES } from './images'
 
-// The 25 numbered tile images used by src/ui.tsx
-const TILE_IMAGES = [
-  'images/image1x1.png', 'images/image2x1.png', 'images/image3x1.png', 'images/image4x1.png', 'images/image5x1.png',
-  'images/image1x2.png', 'images/image2x2.png', 'images/image3x2.png', 'images/image4x2.png', 'images/image5x2.png',
-  'images/image1x3.png', 'images/image2x3.png', 'images/image3x3.png', 'images/image4x3.png', 'images/image5x3.png',
-  'images/image1x4.png', 'images/image2x4.png', 'images/image3x4.png', 'images/image4x4.png', 'images/image5x4.png',
-  'images/image1x5.png', 'images/image2x5.png', 'images/image3x5.png', 'images/image4x5.png', 'images/image5x5.png',
-]
+// The puzzle pictures src/ui.tsx slices into tiles at runtime (src/images.ts).
+const TILE_IMAGES = [...PUZZLE_IMAGES]
+
+// Where a new picture goes; every PNG here must be listed in PUZZLE_IMAGES.
+const PUZZLES_DIR = 'images/puzzles'
 
 const expectedPaths = [
   ...TILE_IMAGES,
+
+  // the navmap thumbnail scene.json points at
+  'images/image3x3.png',
 
   // win audio referenced in src/reward.ts
   'music/champ2.mp3',
@@ -122,7 +123,7 @@ describe('referenced local asset files should exist in the repository', () => {
     report('Referenced asset files that are empty or placeholder stubs', problems)
   })
 
-  it('checks that the 25 tile images are real PNG files', () => {
+  it('checks that the puzzle pictures are real PNG files', () => {
     const problems: string[] = []
     for (const rel of TILE_IMAGES) {
       const full = repoPath(rel)
@@ -134,6 +135,37 @@ describe('referenced local asset files should exist in the repository', () => {
       }
     }
     report('Tile images that are not valid PNG files', problems)
+  })
+
+  it('checks that every puzzle picture is square, so the tiles it is cut into are square', () => {
+    const problems: string[] = []
+    for (const rel of TILE_IMAGES) {
+      const full = repoPath(rel)
+      if (!fs.existsSync(full)) continue // the existence test above already reports this
+      // A PNG's IHDR chunk follows the signature: width and height are the
+      // big-endian 32-bit integers at bytes 16 and 20.
+      const head = readHead(full, 24)
+      const width = head.readUInt32BE(16)
+      const height = head.readUInt32BE(20)
+      if (width === 0 || width !== height) problems.push(`${rel} is ${width}x${height}, not square`)
+    }
+    report('Puzzle pictures that are not square', problems)
+  })
+
+  it('checks that the folder of puzzle pictures and PUZZLE_IMAGES list the same files', () => {
+    const problems: string[] = []
+    if (TILE_IMAGES.length === 0) problems.push('PUZZLE_IMAGES is empty: the board would have nothing to draw')
+    const onDisk = fs
+      .readdirSync(repoPath(PUZZLES_DIR))
+      .filter((name) => name.toLowerCase().endsWith('.png'))
+      .map((name) => `${PUZZLES_DIR}/${name}`)
+    for (const rel of onDisk) {
+      if (!TILE_IMAGES.includes(rel)) problems.push(`${rel} is in ${PUZZLES_DIR}/ but not listed in PUZZLE_IMAGES (src/images.ts)`)
+    }
+    for (const rel of TILE_IMAGES) {
+      if (!rel.startsWith(`${PUZZLES_DIR}/`)) problems.push(`${rel} is listed in PUZZLE_IMAGES but lives outside ${PUZZLES_DIR}/`)
+    }
+    report('Puzzle pictures and PUZZLE_IMAGES out of step', problems)
   })
 })
 
